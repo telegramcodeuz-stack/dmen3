@@ -10,9 +10,6 @@ def load_docs():
             return json.load(f)
     return {}
 
-# HTML uses DOUBLE braces {{ }} for literal JS braces (since we use .format())
-# We build the page as a plain string to avoid f-string issues with JS template literals
-
 HTML_PAGE = """<!DOCTYPE html>
 <html lang="uz">
 <head>
@@ -23,8 +20,6 @@ HTML_PAGE = """<!DOCTYPE html>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',sans-serif;background:#fff;min-height:100vh;color:#111827}
-
-/* HEADER */
 header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68px;display:flex;align-items:center;justify-content:space-between}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none}
 .logo-icon{width:48px;height:48px}
@@ -34,8 +29,6 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
 .lang-btn{display:flex;align-items:center;gap:8px;border:1.5px solid #dde3ef;border-radius:50px;padding:8px 16px;background:#fff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;color:#111827;cursor:pointer}
 .flag{display:flex;flex-direction:column;width:24px;height:15px;border-radius:3px;overflow:hidden}
 .f1{background:#1B96D4;flex:1}.f2{background:#fff;flex:1}.f3{background:#1EB53A;flex:1}
-
-/* PIN PAGE */
 #pin-page{display:flex;flex-direction:column;align-items:center;padding:80px 20px 60px}
 #pin-page h1{font-size:26px;font-weight:700;text-align:center;max-width:440px;margin-bottom:48px;line-height:1.35}
 .pin-row{display:flex;gap:12px;margin-bottom:32px}
@@ -48,8 +41,6 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
 .error-msg.show{opacity:1}
 @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
 .shake{animation:shake .4s}
-
-/* HINT CARD */
 .hint-card{margin-top:64px;display:flex;border-radius:16px;overflow:hidden;max-width:500px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e8edf5}
 .hint-left{background:#f1f5fb;padding:18px 16px 14px;min-width:160px;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
 .doc-lines{display:flex;flex-direction:column;gap:6px}
@@ -63,31 +54,21 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
 .hint-right{padding:20px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px;background:#fff}
 .hint-text{font-size:13px;font-weight:500;color:#6b7a9a;line-height:1.5}
 .pin-badge{display:inline-block;background:#a8d4f5;border-radius:10px;padding:7px 18px;font-size:24px;font-weight:800;color:#1a2340;letter-spacing:2px}
-
-/* DOC PAGE */
 #doc-page{display:none;padding:20px;max-width:820px;margin:0 auto}
 .print-btn{display:block;margin:16px auto;background:#1e6fd9;color:#fff;border:none;padding:11px 30px;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;cursor:pointer}
 .print-btn:hover{background:#1557b8}
-
-/* DOCUMENT STYLES */
 .doc-wrap{background:#fff;border:1px solid #bbb;padding:24px 28px;font-size:11.5px;line-height:1.5;font-family:'Times New Roman',Times,serif;color:#000}
 .doc-head{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #000;padding-bottom:10px;margin-bottom:14px}
 .doc-head-left{font-size:10.5px;line-height:1.7;text-align:center}
 .doc-head-center{flex:1;display:flex;justify-content:center;padding:0 10px}
 .doc-emblem{width:65px;height:65px}
-.doc-head-right{font-size:10.5px;text-align:right;min-width:140px}
 .doc-title{text-align:center;margin-bottom:14px}
 .doc-title h2{font-size:12.5px;font-weight:bold;line-height:1.4;margin-bottom:2px}
 .doc-title p{font-size:11.5px}
 .doc-musassasa{text-align:center;margin-bottom:8px;font-size:11.5px}
-.doc-musassasa b{font-weight:bold}
-
-/* MAIN TABLE - exact structure */
 .doc-table{width:100%;border-collapse:collapse;margin-top:8px}
 .doc-table td{border:1px solid #000;padding:5px 7px;vertical-align:top;font-size:11px;line-height:1.45}
 .doc-table .num{width:20px;text-align:center;font-weight:bold;background:#f9f9f9}
-
-/* DOC FOOTER */
 .doc-foot{margin-top:16px;border-top:2px solid #000;padding-top:12px;display:flex;align-items:flex-start;gap:16px}
 .doc-foot-logo{display:flex;align-items:center;gap:6px;flex-shrink:0}
 .doc-foot-logo-name{font-size:18px;font-weight:800;color:#1a3a8f;font-family:'Inter',sans-serif;line-height:1}
@@ -95,7 +76,6 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
 .doc-foot-text{flex:1;font-size:9px;line-height:1.6;color:#333;font-family:'Inter',sans-serif}
 .doc-foot-right{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0}
 .doc-foot-pin{font-size:26px;font-weight:800;color:#000;font-family:'Inter',sans-serif;letter-spacing:2px}
-
 @media print{
   header,.print-btn,#pin-page{display:none!important}
   #doc-page{display:block!important;padding:0;max-width:100%}
@@ -129,7 +109,6 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
   </button>
 </header>
 
-<!-- PIN PAGE -->
 <div id="pin-page">
   <h1>Hujjatni ko'rish uchun PIN - kodni kiriting</h1>
   <div class="pin-row" id="pin-row">
@@ -138,9 +117,8 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
     <input class="pin-input" type="text" maxlength="1" inputmode="numeric" autocomplete="off" id="p2">
     <input class="pin-input" type="text" maxlength="1" inputmode="numeric" autocomplete="off" id="p3">
   </div>
-  <button class="btn-open" id="open-btn" onclick="checkPin()">Ochish</button>
+  <button class="btn-open" id="open-btn">Ochish</button>
   <div class="error-msg" id="error-msg">PIN kod noto'g'ri. Qayta urinib ko'ring.</div>
-
   <div class="hint-card">
     <div class="hint-left">
       <div class="doc-lines">
@@ -173,7 +151,6 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
   </div>
 </div>
 
-<!-- DOCUMENT PAGE -->
 <div id="doc-page">
   <button class="print-btn" onclick="window.print()">&#128438; Chop etish</button>
   <div id="doc-content"></div>
@@ -182,360 +159,175 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-var pathParts = window.location.pathname.split('/');
-var DOC_ID = (pathParts[1] === 'doc' && pathParts[2]) ? pathParts[2] : null;
+(function() {
+  var pathParts = window.location.pathname.split('/');
+  var DOC_ID = (pathParts[1] === 'doc' && pathParts[2]) ? pathParts[2] : null;
 
-var inputs = [];
-var btn;
-var errEl;
+  var p0 = document.getElementById('p0');
+  var p1 = document.getElementById('p1');
+  var p2 = document.getElementById('p2');
+  var p3 = document.getElementById('p3');
+  var allInputs = [p0, p1, p2, p3];
+  var btn = document.getElementById('open-btn');
+  var errEl = document.getElementById('error-msg');
 
-window.onload = function() {
-  inputs = Array.from(document.querySelectorAll('.pin-input'));
-  btn = document.getElementById('open-btn');
-  errEl = document.getElementById('error-msg');
-
-  // Start disabled
   btn.disabled = true;
-  btn.classList.remove('active');
 
-  inputs.forEach(function(inp, i) {
-    // Desktop keyboard
-    inp.addEventListener('keydown', function(e) {
-      if (e.key === 'Backspace') {
-        if (inp.value.length > 0) {
-          inp.value = '';
-        } else if (i > 0) {
-          inputs[i-1].value = '';
-          inputs[i-1].focus();
-        }
-        updateBtn();
-        e.preventDefault();
-        return;
+  function getPin() {
+    return p0.value + p1.value + p2.value + p3.value;
+  }
+
+  function refreshBtn() {
+    var pin = getPin();
+    if (pin.length === 4) {
+      btn.disabled = false;
+      btn.classList.add('active');
+    } else {
+      btn.disabled = true;
+      btn.classList.remove('active');
+    }
+  }
+
+  function setupInput(el, nextEl, prevEl) {
+    el.addEventListener('input', function() {
+      var v = el.value.replace(/[^0-9]/g, '');
+      el.value = v ? v[0] : '';
+      refreshBtn();
+      errEl.classList.remove('show');
+      if (el.value && nextEl) {
+        nextEl.focus();
+      }
+    });
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Backspace' && el.value === '' && prevEl) {
+        prevEl.value = '';
+        prevEl.focus();
+        refreshBtn();
       }
       if (e.key === 'Enter') {
-        checkPin();
-        return;
+        doCheck();
       }
-      if (!/^[0-9]$/.test(e.key)) {
-        e.preventDefault();
-        return;
-      }
-      inp.value = e.key;
-      updateBtn();
-      if (i < 3) {
-        setTimeout(function(){ inputs[i+1].focus(); }, 0);
+    });
+    el.addEventListener('paste', function(e) {
+      var text = (e.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g, '');
+      if (text.length >= 4) {
+        p0.value = text[0]; p1.value = text[1]; p2.value = text[2]; p3.value = text[3];
+        p3.focus();
+        refreshBtn();
       }
       e.preventDefault();
     });
+  }
 
-    // Mobile keyboard fallback
-    inp.addEventListener('input', function() {
-      var v = inp.value.replace(/[^0-9]/g, '');
-      inp.value = v ? v[v.length-1] : '';
-      updateBtn();
-      errEl.classList.remove('show');
-      if (inp.value && i < 3) {
-        setTimeout(function(){ inputs[i+1].focus(); }, 0);
+  setupInput(p0, p1, null);
+  setupInput(p1, p2, p0);
+  setupInput(p2, p3, p1);
+  setupInput(p3, null, p2);
+
+  function doCheck() {
+    var pin = getPin();
+    if (pin.length < 4 || !DOC_ID) return;
+    btn.textContent = 'Tekshirilmoqda...';
+    btn.disabled = true;
+
+    fetch('/verify', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({doc_id: DOC_ID, pin: pin})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        showDoc(data.doc, pin);
+      } else {
+        errEl.textContent = data.error || "PIN kod noto'g'ri";
+        errEl.classList.add('show');
+        var row = document.getElementById('pin-row');
+        row.classList.add('shake');
+        setTimeout(function() { row.classList.remove('shake'); }, 400);
+        p0.value = ''; p1.value = ''; p2.value = ''; p3.value = '';
+        btn.textContent = 'Ochish';
+        btn.disabled = true;
+        btn.classList.remove('active');
+        p0.focus();
       }
-    });
-
-    inp.addEventListener('focus', function() { inp.select(); });
-  });
-
-  if (DOC_ID) inputs[0].focus();
-};
-
-function updateBtn() {
-  var count = 0;
-  inputs.forEach(function(inp){ if (inp.value.length === 1) count++; });
-  var full = (count === 4);
-  btn.disabled = !full;
-  if (full) {
-    btn.classList.add('active');
-  } else {
-    btn.classList.remove('active');
-  }
-}
-
-function checkPin() {
-  var pin = inputs.map(function(i){ return i.value; }).join('');
-  if (pin.length < 4) return;
-  if (!DOC_ID) {
-    errEl.textContent = "Hujjat ID topilmadi";
-    errEl.classList.add('show');
-    return;
-  }
-  btn.textContent = 'Tekshirilmoqda...';
-  btn.disabled = true;
-  fetch('/verify', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({doc_id: DOC_ID, pin: pin})
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(data) {
-    if (data.ok) {
-      showDocument(data.doc, pin);
-    } else {
-      errEl.textContent = data.error || "PIN kod noto\'g\'ri";
+    })
+    .catch(function() {
+      errEl.textContent = 'Xatolik. Internet aloqasini tekshiring.';
       errEl.classList.add('show');
-      document.getElementById('pin-row').classList.add('shake');
-      setTimeout(function(){ document.getElementById('pin-row').classList.remove('shake'); }, 400);
-      inputs.forEach(function(inp){ inp.value = ''; });
       btn.textContent = 'Ochish';
-      btn.disabled = true;
-      btn.classList.remove('active');
-      inputs[0].focus();
-    }
-  })
-  .catch(function() {
-    errEl.textContent = "Xatolik yuz berdi. Internet aloqasini tekshiring.";
-    errEl.classList.add('show');
-    btn.textContent = 'Ochish';
-    updateBtn();
-  });
-}
-
-function esc(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-<script>
-var pathParts = window.location.pathname.split('/');
-var DOC_ID = (pathParts[1] === 'doc' && pathParts[2]) ? pathParts[2] : null;
-
-var inputs = Array.from(document.querySelectorAll('.pin-input'));
-var btn = document.getElementById('open-btn');
-var errEl = document.getElementById('error-msg');
-
-inputs.forEach(function(inp, i) {
-  inp.addEventListener('keydown', function(e) {
-    if (e.key === 'Backspace') {
-      if (inp.value) { inp.value = ''; }
-      else if (i > 0) { inputs[i-1].value = ''; inputs[i-1].focus(); }
-      updateBtn(); e.preventDefault(); return;
-    }
-    if (e.key === 'Enter') { checkPin(); return; }
-    if (!/^[0-9]$/.test(e.key)) { e.preventDefault(); return; }
-    inp.value = e.key;
-    updateBtn();
-    if (i < 3) { inputs[i+1].focus(); inputs[i+1].select(); }
-    e.preventDefault();
-  });
-  inp.addEventListener('input', function() {
-    var v = inp.value.replace(/[^0-9]/g,'');
-    inp.value = v ? v.slice(-1) : '';
-    updateBtn();
-    errEl.classList.remove('show');
-    if (inp.value && i < 3) { inputs[i+1].focus(); inputs[i+1].select(); }
-  });
-  inp.addEventListener('click', function() { inp.select(); });
-  inp.addEventListener('paste', function(e) {
-    var p = (e.clipboardData||window.clipboardData).getData('text').replace(/[^0-9]/g,'');
-    if (p.length >= 4) { inputs.forEach(function(x,j){ x.value=p[j]||''; }); inputs[3].focus(); updateBtn(); }
-    e.preventDefault();
-  });
-});
-
-function updateBtn() {
-  var full = inputs.every(function(x){ return x.value.length === 1; });
-  btn.disabled = !full;
-  if (full) { btn.classList.add('active'); } else { btn.classList.remove('active'); }
-}
-
-function checkPin() {
-  var pin = inputs.map(function(i){ return i.value; }).join('');
-  if (pin.length < 4 || !DOC_ID) return;
-  btn.textContent = 'Tekshirilmoqda...';
-  btn.disabled = true;
-  fetch('/verify', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({doc_id: DOC_ID, pin: pin})
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(data) {
-    if (data.ok) {
-      showDocument(data.doc, pin);
-    } else {
-      errEl.textContent = data.error || "PIN kod noto'g'ri";
-      errEl.classList.add('show');
-      document.getElementById('pin-row').classList.add('shake');
-      setTimeout(function(){ document.getElementById('pin-row').classList.remove('shake'); }, 400);
-      inputs.forEach(function(i){ i.value=''; });
-      inputs[0].focus();
-      btn.textContent = 'Ochish';
-      updateBtn();
-    }
-  })
-  .catch(function() {
-    errEl.textContent = "Xatolik yuz berdi.";
-    errEl.classList.add('show');
-    btn.textContent = 'Ochish';
-    btn.disabled = false;
-    btn.classList.add('active');
-  });
-}
-
-
-function showDocument(d, pin) {
-  document.getElementById('pin-page').style.display = 'none';
-  document.getElementById('doc-page').style.display = 'block';
-  var docUrl = window.location.href;
-  var origin = window.location.origin;
-
-  var html = '<div class="doc-wrap">'
-  /* ── HEADER ── */
-  + '<div class="doc-head">'
-  +   '<div class="doc-head-left">'
-  +     "O'zbekiston Respublikasi Sog'liqni<br>saqlash vazirligi<br>"
-  +     '34 &ndash; sonli oilaviy poliklinika'
-  +   '</div>'
-  +   '<div class="doc-head-center">'
-  +     '<img class="doc-emblem" src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Emblem_of_Uzbekistan.svg/200px-Emblem_of_Uzbekistan.svg.png" alt="Gerb">'
-  +   '</div>'
-  +   '<div class="doc-head-right"></div>'
-  + '</div>'
-
-  /* ── TITLE ── */
-  + '<div class="doc-title">'
-  +   '<h2>Ta\'lim olayotgan shaxslar uchun mehnatga layoqatsizlik ma\'lumotnomasi</h2>'
-  +   '<p>Ro\'yhatga olingan sana: ' + esc(d.sana) + '</p>'
-  +   '<p><strong>No ' + esc(d.doc_number) + '</strong></p>'
-  + '</div>'
-  + '<div class="doc-musassasa">'
-  +   'Tibbiy muassasa nomi: <b>34 &ndash; sonli oilaviy poliklinika</b><br>'
-  +   '<em>(qaysi muassasa tomonidan berilgan)</em>'
-  + '</div>'
-
-  /* ── MAIN TABLE ── */
-  + '<table class="doc-table">'
-
-  /* Row 1 */
-  + '<tr>'
-  +   '<td class="num">1</td>'
-  +   '<td style="width:38%"><b>Vaqtincha mehnatga layoqatsiz fuqaro haqidagi ma\'lumotlar:</b><br>'
-  +     'FISh: ' + esc(d.fish) + '<br>'
-  +     'Jinsi: ' + esc(d.jinsi) + '<br>'
-  +     'JShShIR: ' + esc(d.jshshr) + '<br>'
-  +     'Yoshi: ' + esc(d.yoshi) + ' yosh<br>'
-  +     'Bemorga qarindoshligi:'
-  +   '</td>'
-  +   '<td class="num">1a</td>'
-  +   '<td style="width:38%">Bemor bola haqidagi ma\'lumotlar:<br>'
-  +     'FISh: &ndash;<br>Jinsi: &ndash;<br>JShShIR: &ndash;<br>Yoshi: &ndash; yosh'
-  +   '</td>'
-  + '</tr>'
-
-  /* Row 2-3 */
-  + '<tr>'
-  +   '<td class="num">2</td>'
-  +   '<td>Yashash manzili: ' + esc(d.yashash) + '</td>'
-  +   '<td class="num">3</td>'
-  +   '<td>Ish/o\'qish joyi: ' + esc(d.ish_joyi) + '</td>'
-  + '</tr>'
-
-  /* Row 4-5 */
-  + '<tr>'
-  +   '<td class="num">4</td>'
-  +   '<td>Biriktirilgan tibbiy muassasa:<br>34 &ndash; sonli oilaviy poliklinika</td>'
-  +   '<td class="num">5</td>'
-  +   '<td>Mehnatga layoqatsizlik sababi:<br>Kasallik</td>'
-  + '</tr>'
-
-  /* Row 6-7 */
-  + '<tr>'
-  +   '<td class="num">6</td>'
-  +   '<td>Tashxis (KXT-10 kodi va Nomi):<br>' + esc(d.tashxis) + '</td>'
-  +   '<td class="num">7</td>'
-  +   '<td>Davolovchi shifokor FISh: ' + esc(d.shifokor) + '<br>'
-  +     'Bo\'lim boshlig\'i (mas\'ul shaxs) FISh:<br>' + esc(d.boshlik)
-  +   '</td>'
-  + '</tr>'
-
-  /* Row 8-9 */
-  + '<tr>'
-  +   '<td class="num">8</td>'
-  +   '<td>Yakuniy tashxis (Nomi va KXT-10 kodi):<br>' + esc(d.tashxis.toUpperCase()) + '</td>'
-  +   '<td class="num">9</td>'
-  +   '<td>VMK raisining FISh:</td>'
-  + '</tr>'
-
-  /* Row 10-11 */
-  + '<tr>'
-  +   '<td class="num">10</td>'
-  +   '<td>Yuqumli kasallikka chalingan bemor bilan<br>kontaktda bo\'lganligi haqidagi ma\'lumotlar: Yo\'q</td>'
-  +   '<td class="num">11</td>'
-  +   '<td>TIEK ma\'lumotlari:<br>Ko\'rikdan o\'tgan sanasi:<br>Xulosa:<br>TIEK raisi FISh:</td>'
-  + '</tr>'
-
-  /* Row 12-13 */
-  + '<tr>'
-  +   '<td class="num">12</td>'
-  +   '<td>Tartib: Ambulator<br>Tartib buzilganlik to\'g\'risida qaydlar: &ndash;</td>'
-  +   '<td class="num">13</td>'
-  +   '<td>Ishdan ozod etilgan kunlar:<br>' + esc(d.boshlanish) + ' &ndash; ' + esc(d.tugash) + '</td>'
-  + '</tr>'
-
-  /* Row 14-15 */
-  + '<tr>'
-  +   '<td class="num">14</td>'
-  +   '<td>Vaqtincha boshqa ishga o\'tkazilsin: Yo\'q</td>'
-  +   '<td class="num">15</td>'
-  +   '<td>Boshqa shahardan kelgan bemorga mehnatga<br>layoqatsizlik varaqasini berish uchun ruhsat etiladi: Yo\'q</td>'
-  + '</tr>'
-
-  /* Row 16-17 */
-  + '<tr>'
-  +   '<td class="num">16</td>'
-  +   '<td>Ushbu ma\'lumotnoma berilgan muassasa:<br>' + esc(d.muassasa) + '</td>'
-  +   '<td class="num">17</td>'
-  +   '<td>Muassasa nomi: \u0422\u0414\u0418\u0423</td>'
-  + '</tr>'
-
-  + '</table>'
-
-  /* ── FOOTER ── */
-  + '<div class="doc-foot">'
-  +   '<div class="doc-foot-logo">'
-  +     '<svg viewBox="0 0 48 48" fill="none" style="width:30px;height:30px">'
-  +       '<rect x="21" y="4" width="6" height="16" rx="3" fill="#1e6fd9"/>'
-  +       '<rect x="21" y="28" width="6" height="16" rx="3" fill="#1e6fd9"/>'
-  +       '<rect x="4" y="21" width="16" height="6" rx="3" fill="#00aadd"/>'
-  +       '<rect x="28" y="21" width="16" height="6" rx="3" fill="#00aadd"/>'
-  +     '</svg>'
-  +     '<div>'
-  +       '<div class="doc-foot-logo-name">DMED</div>'
-  +       '<div class="doc-foot-logo-sub">Documents</div>'
-  +     '</div>'
-  +   '</div>'
-  +   '<div class="doc-foot-text">'
-  +     'Hujjat DMED Yagona tibbiy axborot tizimida yaratilgan. '
-  +     'Hujjatning haqqoniyligini ' + origin + '/doc/' + DOC_ID + ' saytida '
-  +     'hujjatning ID kodini kiritish, yoki QR-kod orqali tekshirish mumkin.<br>'
-  +     '<b>Hujjat ID:</b> ' + DOC_ID + '<br>'
-  +     '<b>Yaratilgan sana:</b> ' + esc(d.sana)
-  +   '</div>'
-  +   '<div class="doc-foot-right">'
-  +     '<div class="doc-foot-pin">' + pin + '</div>'
-  +     '<div id="qr-container"></div>'
-  +   '</div>'
-  + '</div>'
-  + '</div>'; // end doc-wrap
-
-  document.getElementById('doc-content').innerHTML = html;
-
-  setTimeout(function() {
-    new QRCode(document.getElementById('qr-container'), {
-      text: docUrl,
-      width: 80, height: 80,
-      colorDark: '#000', colorLight: '#fff',
-      correctLevel: QRCode.CorrectLevel.M
+      refreshBtn();
     });
-  }, 150);
-}
+  }
 
-if (DOC_ID) inputs[0].focus();
+  btn.addEventListener('click', function() {
+    doCheck();
+  });
+
+  function xe(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function showDoc(d, pin) {
+    document.getElementById('pin-page').style.display = 'none';
+    document.getElementById('doc-page').style.display = 'block';
+    var docUrl = window.location.href;
+    var origin = window.location.origin;
+
+    var h = '<div class="doc-wrap">';
+    h += '<div class="doc-head">';
+    h += '<div class="doc-head-left">O\'zbekiston Respublikasi Sog\'liqni<br>saqlash vazirligi<br>34 &ndash; sonli oilaviy poliklinika</div>';
+    h += '<div class="doc-head-center"><img class="doc-emblem" src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Emblem_of_Uzbekistan.svg/200px-Emblem_of_Uzbekistan.svg.png"></div>';
+    h += '<div style="min-width:140px"></div>';
+    h += '</div>';
+
+    h += '<div class="doc-title">';
+    h += '<h2>Ta\'lim olayotgan shaxslar uchun mehnatga layoqatsizlik ma\'lumotnomasi</h2>';
+    h += '<p>Ro\'yhatga olingan sana: ' + xe(d.sana) + '</p>';
+    h += '<p><strong>No ' + xe(d.doc_number) + '</strong></p>';
+    h += '</div>';
+    h += '<div class="doc-musassasa">Tibbiy muassasa nomi: <b>34 &ndash; sonli oilaviy poliklinika</b><br><em>(qaysi muassasa tomonidan berilgan)</em></div>';
+
+    h += '<table class="doc-table">';
+    h += '<tr>';
+    h += '<td class="num">1</td>';
+    h += '<td style="width:40%"><b>Vaqtincha mehnatga layoqatsiz fuqaro haqidagi ma\'lumotlar:</b><br>FISh: ' + xe(d.fish) + '<br>Jinsi: ' + xe(d.jinsi) + '<br>JShShIR: ' + xe(d.jshshr) + '<br>Yoshi: ' + xe(d.yoshi) + ' yosh<br>Bemorga qarindoshligi:</td>';
+    h += '<td class="num">1a</td>';
+    h += '<td>Bemor bola haqidagi ma\'lumotlar:<br>FISh: &ndash;<br>Jinsi: &ndash;<br>JShShIR: &ndash;<br>Yoshi: &ndash; yosh</td>';
+    h += '</tr>';
+    h += '<tr><td class="num">2</td><td>Yashash manzili: ' + xe(d.yashash) + '</td><td class="num">3</td><td>Ish/o\'qish joyi: ' + xe(d.ish_joyi) + '</td></tr>';
+    h += '<tr><td class="num">4</td><td>Biriktirilgan tibbiy muassasa:<br>34 &ndash; sonli oilaviy poliklinika</td><td class="num">5</td><td>Mehnatga layoqatsizlik sababi:<br>Kasallik</td></tr>';
+    h += '<tr><td class="num">6</td><td>Tashxis (KXT-10 kodi va Nomi):<br>' + xe(d.tashxis) + '</td><td class="num">7</td><td>Davolovchi shifokor FISh: ' + xe(d.shifokor) + '<br>Bo\'lim boshlig\'i (mas\'ul shaxs) FISh:<br>' + xe(d.boshlik) + '</td></tr>';
+    h += '<tr><td class="num">8</td><td>Yakuniy tashxis (Nomi va KXT-10 kodi):<br>' + xe(d.tashxis).toUpperCase() + '</td><td class="num">9</td><td>VMK raisining FISh:</td></tr>';
+    h += '<tr><td class="num">10</td><td>Yuqumli kasallikka chalingan bemor bilan<br>kontaktda bo\'lganligi haqidagi ma\'lumotlar: Yo\'q</td><td class="num">11</td><td>TIEK ma\'lumotlari:<br>Ko\'rikdan o\'tgan sanasi:<br>Xulosa:<br>TIEK raisi FISh:</td></tr>';
+    h += '<tr><td class="num">12</td><td>Tartib: Ambulator<br>Tartib buzilganlik to\'g\'risida qaydlar: &ndash;</td><td class="num">13</td><td>Ishdan ozod etilgan kunlar:<br>' + xe(d.boshlanish) + ' &ndash; ' + xe(d.tugash) + '</td></tr>';
+    h += '<tr><td class="num">14</td><td>Vaqtincha boshqa ishga o\'tkazilsin: Yo\'q</td><td class="num">15</td><td>Boshqa shahardan kelgan bemorga mehnatga<br>layoqatsizlik varaqasini berish uchun ruhsat etiladi: Yo\'q</td></tr>';
+    h += '<tr><td class="num">16</td><td>Ushbu ma\'lumotnoma berilgan muassasa:<br>' + xe(d.muassasa) + '</td><td class="num">17</td><td>Muassasa nomi: \u0422\u0414\u0418\u0423</td></tr>';
+    h += '</table>';
+
+    h += '<div class="doc-foot">';
+    h += '<div class="doc-foot-logo">';
+    h += '<svg viewBox="0 0 48 48" fill="none" style="width:30px;height:30px"><rect x="21" y="4" width="6" height="16" rx="3" fill="#1e6fd9"/><rect x="21" y="28" width="6" height="16" rx="3" fill="#1e6fd9"/><rect x="4" y="21" width="16" height="6" rx="3" fill="#00aadd"/><rect x="28" y="21" width="16" height="6" rx="3" fill="#00aadd"/></svg>';
+    h += '<div><div class="doc-foot-logo-name">DMED</div><div class="doc-foot-logo-sub">Documents</div></div>';
+    h += '</div>';
+    h += '<div class="doc-foot-text">Hujjat DMED Yagona tibbiy axborot tizimida yaratilgan. Hujjatning haqqoniyligini ' + origin + '/doc/' + DOC_ID + ' saytida hujjatning ID kodini kiritish, yoki QR-kod orqali tekshirish mumkin.<br><b>Hujjat ID:</b> ' + DOC_ID + '<br><b>Yaratilgan sana:</b> ' + xe(d.sana) + '</div>';
+    h += '<div class="doc-foot-right"><div class="doc-foot-pin">' + pin + '</div><div id="qr-box"></div></div>';
+    h += '</div>';
+    h += '</div>';
+
+    document.getElementById('doc-content').innerHTML = h;
+
+    setTimeout(function() {
+      new QRCode(document.getElementById('qr-box'), {
+        text: docUrl, width: 80, height: 80,
+        colorDark: '#000', colorLight: '#fff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }, 100);
+  }
+
+  if (DOC_ID) p0.focus();
+})();
 </script>
 </body>
 </html>"""
