@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DMED Documents</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body { font-family: 'Inter', sans-serif; background: #fff; min-height: 100vh; color: #111827; }
+
+/* ── HEADER ── */
+header {
+  background: #fff; border-bottom: 1px solid #e8edf5;
+  padding: 0 32px; height: 68px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.logo-icon { width: 52px; height: 52px; }
+.logo-text { display: flex; flex-direction: column; line-height: 1.1; }
+.logo-dmed { font-size: 28px; font-weight: 800; color: #1a3a8f; }
+.logo-docs { font-size: 13px; font-weight: 600; color: #1e6fd9; }
+.lang-btn {
+  display: flex; align-items: center; gap: 8px;
+  border: 1.5px solid #dde3ef; border-radius: 50px;
+  padding: 8px 16px; background: #fff;
+  font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+  color: #111827; cursor: pointer; transition: border-color .2s;
+}
+.lang-btn:hover { border-color: #1e6fd9; }
+.flag { display: flex; flex-direction: column; width: 24px; height: 15px; border-radius: 3px; overflow: hidden; }
+.f1 { background: #1B96D4; flex: 1; }
+.f2 { background: #fff; flex: 1; }
+.f3 { background: #1EB53A; flex: 1; }
+
+/* ── PIN PAGE ── */
+#pin-page { display: flex; flex-direction: column; align-items: center; padding: 80px 20px 60px; }
+#pin-page h1 { font-size: 28px; font-weight: 700; text-align: center; max-width: 440px; margin-bottom: 48px; line-height: 1.3; }
+.pin-row { display: flex; gap: 12px; margin-bottom: 32px; }
+.pin-input {
+  width: 64px; height: 68px;
+  border: 1.5px solid #d1d9ea; border-radius: 14px;
+  background: #fff; font-family: 'Inter', sans-serif;
+  font-size: 28px; font-weight: 700; text-align: center; color: #111827;
+  outline: none; transition: border-color .18s, box-shadow .18s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.pin-input:focus { border-color: #1e6fd9; box-shadow: 0 0 0 3px rgba(30,111,217,.12); }
+.btn-open {
+  width: 340px; height: 54px; border-radius: 12px; border: none;
+  background: #e2e8f0; color: #94a3b8;
+  font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600;
+  cursor: not-allowed; transition: background .2s, color .2s, box-shadow .2s;
+}
+.btn-open.active { background: #1e6fd9; color: #fff; cursor: pointer; box-shadow: 0 4px 16px rgba(30,111,217,.25); }
+.btn-open.active:hover { background: #1557b8; }
+.error-msg { margin-top: 12px; height: 20px; color: #ef4444; font-size: 13px; font-weight: 500; opacity: 0; transition: opacity .2s; }
+.error-msg.show { opacity: 1; }
+@keyframes shake {
+  0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)}
+  40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)}
+}
+.shake { animation: shake .4s; }
+
+/* Hint card */
+.hint-card {
+  margin-top: 72px; display: flex; border-radius: 16px; overflow: hidden;
+  max-width: 520px; width: 100%;
+  box-shadow: 0 4px 24px rgba(0,0,0,.08); border: 1px solid #e8edf5; background: #fff;
+}
+.hint-left { background: #f1f5fb; padding: 20px 18px 16px; min-width: 175px; display: flex; flex-direction: column; gap: 7px; justify-content: space-between; }
+.doc-lines { display: flex; flex-direction: column; gap: 7px; }
+.dl { height: 7px; border-radius: 4px; background: #c8d4e8; }
+.dl.w100{width:100%} .dl.w80{width:80%} .dl.w60{width:60%} .dl.w90{width:90%}
+.doc-footer { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.doc-pin-num { font-size: 12px; font-weight: 700; color: #6b7a9a; letter-spacing: 1px; }
+.qr-box { width: 36px; height: 36px; background: #1a2340; border-radius: 4px; padding: 4px; display: grid; grid-template-columns: repeat(7,1fr); grid-template-rows: repeat(7,1fr); gap: 1px; }
+.qr-box .b { background: #fff; border-radius: 1px; }
+.qr-box .w { background: transparent; }
+.hint-arrow { display: flex; align-items: center; padding: 0 10px; background: #f1f5fb; color: #1e6fd9; }
+.hint-right { padding: 24px 22px; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+.hint-text { font-size: 14px; font-weight: 500; color: #6b7a9a; line-height: 1.55; }
+.pin-badge { display: inline-block; background: #a8d4f5; border-radius: 10px; padding: 8px 20px; font-size: 26px; font-weight: 800; color: #1a2340; letter-spacing: 2px; width: fit-content; }
+
+/* ── DOCUMENT PAGE ── */
+#doc-page { display: none; padding: 20px; max-width: 800px; margin: 0 auto; }
+
+.doc-wrapper {
+  background: #fff; border: 1px solid #ccc;
+  padding: 28px 32px; font-size: 12px; line-height: 1.5;
+  font-family: 'Times New Roman', Times, serif; color: #000;
+}
+
+.doc-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid #000; padding-bottom: 12px; }
+.doc-header-left { font-size: 11px; line-height: 1.6; }
+.doc-header-center { text-align: center; flex: 1; padding: 0 16px; }
+.doc-emblem { width: 70px; height: 70px; }
+.doc-title-block { text-align: center; margin-bottom: 18px; }
+.doc-title-block h2 { font-size: 13px; font-weight: bold; line-height: 1.4; }
+.doc-title-block p { font-size: 12px; }
+.doc-subtitle { text-align: center; margin-bottom: 6px; font-size: 12px; }
+.doc-subtitle span { font-weight: bold; }
+
+/* Table */
+.doc-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.doc-table td { border: 1px solid #000; padding: 6px 8px; vertical-align: top; font-size: 11.5px; }
+.doc-table td.label { font-weight: bold; }
+.doc-table td.num { width: 24px; text-align: center; font-weight: bold; }
+
+/* Footer */
+.doc-footer-section { margin-top: 20px; border-top: 2px solid #000; padding-top: 14px; }
+.doc-footer-grid { display: flex; align-items: flex-start; gap: 20px; }
+.doc-footer-logo { display: flex; align-items: center; gap: 8px; }
+.doc-footer-logo svg { width: 32px; height: 32px; }
+.doc-footer-logo-text { font-size: 20px; font-weight: 800; color: #1a3a8f; font-family: 'Inter', sans-serif; }
+.doc-footer-logo-sub { font-size: 10px; color: #1e6fd9; font-weight: 600; font-family: 'Inter', sans-serif; }
+.doc-footer-text { flex: 1; font-size: 9.5px; line-height: 1.55; color: #333; font-family: 'Inter', sans-serif; }
+.doc-footer-pin-qr { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+.doc-pin-number { font-size: 28px; font-weight: 800; color: #000; font-family: 'Inter', sans-serif; letter-spacing: 2px; }
+.doc-id-block { margin-top: 8px; font-size: 9px; color: #555; font-family: 'Inter', sans-serif; }
+
+.print-btn {
+  display: block; margin: 20px auto 0;
+  background: #1e6fd9; color: #fff;
+  border: none; padding: 12px 32px; border-radius: 10px;
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: background .2s;
+}
+.print-btn:hover { background: #1557b8; }
+
+@media print {
+  header, .print-btn, #pin-page { display: none !important; }
+  #doc-page { display: block !important; padding: 0; }
+  body { background: white; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="/">
+    <svg class="logo-icon" viewBox="0 0 52 52" fill="none">
+      <rect x="23" y="4" width="6" height="18" rx="3" fill="#1e6fd9"/>
+      <rect x="23" y="30" width="6" height="18" rx="3" fill="#1e6fd9"/>
+      <rect x="4" y="23" width="18" height="6" rx="3" fill="#00aadd"/>
+      <rect x="30" y="23" width="18" height="6" rx="3" fill="#00aadd"/>
+      <rect x="10" y="7" width="6" height="18" rx="3" fill="#4db8f0" transform="rotate(45 10 7)"/>
+      <rect x="29" y="27" width="6" height="18" rx="3" fill="#4db8f0" transform="rotate(45 29 27)"/>
+      <rect x="35" y="7" width="6" height="18" rx="3" fill="#4db8f0" transform="rotate(-45 35 7)"/>
+      <rect x="16" y="27" width="6" height="18" rx="3" fill="#4db8f0" transform="rotate(-45 16 27)"/>
+    </svg>
+    <div class="logo-text">
+      <span class="logo-dmed">DMED</span>
+      <span class="logo-docs">Documents</span>
+    </div>
+  </a>
+  <button class="lang-btn">
+    <div class="flag"><div class="f1"></div><div class="f2"></div><div class="f3"></div></div>
+    <span>O'zbekcha</span>
+  </button>
+</header>
+
+<!-- PIN PAGE -->
+<div id="pin-page">
+  <h1>Hujjatni ko'rish uchun PIN - kodni kiriting</h1>
+  <div class="pin-row" id="pin-row">
+    <input class="pin-input" type="text" maxlength="1" inputmode="numeric" autocomplete="off" id="p0">
+    <input class="pin-input" type="text" maxlength="1" inputmode="numeric" autocomplete="off" id="p1">
+    <input class="pin-input" type="text" maxlength="1" inputmode="numeric" autocomplete="off" id="p2">
+    <input class="pin-input" type="text" maxlength="1" inputmode="numeric" autocomplete="off" id="p3">
+  </div>
+  <button class="btn-open" id="open-btn" disabled onclick="checkPin()">Ochish</button>
+  <div class="error-msg" id="error-msg">PIN kod noto'g'ri. Qayta urinib ko'ring.</div>
+
+  <div class="hint-card">
+    <div class="hint-left">
+      <div class="doc-lines">
+        <div class="dl w100"></div><div class="dl w80"></div>
+        <div class="dl w100"></div><div class="dl w60"></div>
+        <div class="dl w90"></div><div class="dl w80"></div>
+      </div>
+      <div class="doc-footer">
+        <span class="doc-pin-num">1234</span>
+        <div class="qr-box">
+          <div class="b"></div><div class="b"></div><div class="b"></div><div class="w"></div><div class="b"></div><div class="b"></div><div class="b"></div>
+          <div class="b"></div><div class="w"></div><div class="b"></div><div class="w"></div><div class="b"></div><div class="w"></div><div class="b"></div>
+          <div class="b"></div><div class="b"></div><div class="b"></div><div class="w"></div><div class="b"></div><div class="b"></div><div class="b"></div>
+          <div class="w"></div><div class="w"></div><div class="w"></div><div class="b"></div><div class="w"></div><div class="w"></div><div class="w"></div>
+          <div class="b"></div><div class="b"></div><div class="b"></div><div class="w"></div><div class="b"></div><div class="w"></div><div class="b"></div>
+          <div class="b"></div><div class="w"></div><div class="w"></div><div class="b"></div><div class="w"></div><div class="b"></div><div class="w"></div>
+          <div class="b"></div><div class="b"></div><div class="b"></div><div class="w"></div><div class="b"></div><div class="b"></div><div class="b"></div>
+        </div>
+      </div>
+    </div>
+    <div class="hint-arrow">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6"/>
+      </svg>
+    </div>
+    <div class="hint-right">
+      <p class="hint-text">PIN-kod hujjatning QR-kodi yonida joylashgan</p>
+      <div class="pin-badge">1234</div>
+    </div>
+  </div>
+</div>
+
+<!-- DOCUMENT PAGE -->
+<div id="doc-page">
+  <button class="print-btn" onclick="window.print()">🖨️ Chop etish</button>
+  <div class="doc-wrapper" id="doc-content"></div>
+  <button class="print-btn" onclick="window.print()">🖨️ Chop etish</button>
+</div>
+
+<!-- QR lib -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+  // Get doc_id from URL
+  const pathParts = window.location.pathname.split('/');
+  const DOC_ID = pathParts[pathParts.length - 1] !== '' ? pathParts[pathParts.length - 1] : null;
+
+  // PIN inputs logic
+  const inputs = Array.from(document.querySelectorAll('.pin-input'));
+  const btn = document.getElementById('open-btn');
+  const errEl = document.getElementById('error-msg');
+
+  inputs.forEach((inp, i) => {
+    inp.addEventListener('input', e => {
+      e.target.value = e.target.value.replace(/[^0-9]/g, '');
+      if (e.target.value && i < 3) inputs[i + 1].focus();
+      updateBtn();
+      errEl.classList.remove('show');
+    });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !inp.value && i > 0) {
+        inputs[i - 1].focus(); inputs[i - 1].value = ''; updateBtn();
+      }
+      if (e.key === 'Enter') checkPin();
+    });
+    inp.addEventListener('paste', e => {
+      const p = (e.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g, '');
+      if (p.length >= 4) { inputs.forEach((x, j) => x.value = p[j] || ''); inputs[3].focus(); updateBtn(); }
+      e.preventDefault();
+    });
+  });
+
+  function updateBtn() {
+    const full = inputs.every(i => i.value);
+    btn.disabled = !full;
+    btn.classList.toggle('active', full);
+  }
+
+  async function checkPin() {
+    const pin = inputs.map(i => i.value).join('');
+    if (pin.length < 4 || !DOC_ID) return;
+
+    btn.textContent = 'Tekshirilmoqda...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc_id: DOC_ID, pin })
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        showDocument(data.doc);
+      } else {
+        errEl.textContent = data.error || "PIN kod noto'g'ri";
+        errEl.classList.add('show');
+        document.getElementById('pin-row').classList.add('shake');
+        setTimeout(() => document.getElementById('pin-row').classList.remove('shake'), 400);
+        inputs.forEach(i => i.value = '');
+        inputs[0].focus();
+        updateBtn();
+        btn.textContent = 'Ochish';
+      }
+    } catch (e) {
+      errEl.textContent = 'Xatolik yuz berdi. Qayta urinib ko\'ring.';
+      errEl.classList.add('show');
+      btn.textContent = 'Ochish';
+      btn.disabled = false;
+      btn.classList.add('active');
+    }
+  }
+
+  function showDocument(d) {
+    document.getElementById('pin-page').style.display = 'none';
+    const docPage = document.getElementById('doc-page');
+    docPage.style.display = 'block';
+
+    const docUrl = window.location.href;
+    const pin = inputs.map(i => i.value).join('');
+
+    document.getElementById('doc-content').innerHTML = `
+      <div class="doc-header">
+        <div class="doc-header-left">
+          O'zbekiston Respublikasi Sog'liqni<br>saqlash vazirligi<br>
+          34 – sonli oilaviy poliklinika
+        </div>
+        <div class="doc-header-center">
+          <img class="doc-emblem" src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Emblem_of_Uzbekistan.svg/200px-Emblem_of_Uzbekistan.svg.png" alt="Gerb">
+        </div>
+        <div style="width:160px"></div>
+      </div>
+
+      <div class="doc-title-block">
+        <h2>Ta'lim olayotgan shaxslar uchun mehnatga layoqatsizlik ma'lumotnomasi</h2>
+        <p>Ro'yhatga olingan sana: ${d.sana}</p>
+        <p><strong>No ${d.doc_number}</strong></p>
+      </div>
+
+      <div class="doc-subtitle">
+        Tibbiy muassasa nomi: <span>34 – sonli oilaviy poliklinika</span><br>
+        <em>(qaysi muassasa tomonidan berilgan)</em>
+      </div>
+
+      <table class="doc-table">
+        <tr>
+          <td class="num">1</td>
+          <td class="label" colspan="2">
+            Vaqtincha mehnatga layoqatsiz fuqaro haqidagi ma'lumotlar:<br>
+            FISh: ${d.fish}<br>
+            Jinsi: ${d.jinsi}<br>
+            JShShIR: ${d.jshshr}<br>
+            Yoshi: ${d.yoshi} yosh<br>
+            Bemorga qarindoshligi:
+          </td>
+          <td class="num">1a</td>
+          <td colspan="2">
+            Bemor bola haqidagi ma'lumotlar:<br>
+            FISh: –<br>
+            Jinsi: –<br>
+            JShShIR: –<br>
+            Yoshi: – yosh
+          </td>
+        </tr>
+        <tr>
+          <td class="num">2</td>
+          <td colspan="2">Yashash manzili: ${d.yashash}</td>
+          <td class="num">3</td>
+          <td colspan="2">Ish/o'qish joyi: ${d.ish_joyi}</td>
+        </tr>
+        <tr>
+          <td class="num">4</td>
+          <td colspan="2">
+            Biriktirilgan tibbiy muassasa:<br>
+            34 – sonli oilaviy poliklinika
+          </td>
+          <td class="num">5</td>
+          <td colspan="2">
+            Mehnatga layoqatsizlik sababi:<br>
+            Kasallik
+          </td>
+        </tr>
+        <tr>
+          <td class="num">6</td>
+          <td colspan="2">
+            Tashxis (KXT-10 kodi va Nomi):<br>
+            ${d.tashxis}
+          </td>
+          <td class="num">7</td>
+          <td colspan="2">
+            Davolovchi shifokor FISh: ${d.shifokor}<br>
+            Bo'lim boshlig'i (mas'ul shaxs) FISh:<br>
+            ${d.boshlik}
+          </td>
+        </tr>
+        <tr>
+          <td class="num">8</td>
+          <td colspan="2">
+            Yakuniy tashxis (Nomi va KXT-10 kodi):<br>
+            ${d.tashxis.toUpperCase()}
+          </td>
+          <td class="num">9</td>
+          <td colspan="2">VMK raisining FISh:</td>
+        </tr>
+        <tr>
+          <td class="num">10</td>
+          <td colspan="2">
+            Yuqumli kasallikka chalingan bemor bilan<br>
+            kontaktda bo'lganligi haqidagi ma'lumotlar: Yo'q
+          </td>
+          <td class="num">11</td>
+          <td colspan="2">
+            TIEK ma'lumotlari:<br>
+            Ko'rikdan o'tgan sanasi:<br>
+            Xulosa:<br>
+            TIEK raisi FISh:
+          </td>
+        </tr>
+        <tr>
+          <td class="num">12</td>
+          <td colspan="2">
+            Tartib: Ambulator<br>
+            Tartib buzilganlik to'g'risida qaydlar: –
+          </td>
+          <td class="num">13</td>
+          <td colspan="2">
+            Ishdan ozod etilgan kunlar:<br>
+            ${d.boshlanish} – ${d.tugash}
+          </td>
+        </tr>
+        <tr>
+          <td class="num">14</td>
+          <td colspan="2">Vaqtincha boshqa ishga o'tkazilsin: Yo'q</td>
+          <td class="num">15</td>
+          <td colspan="2">
+            Boshqa shahardan kelgan bemorga mehnatga<br>
+            layoqatsizlik varaqasini berish uchun ruhsat etiladi: Yo'q
+          </td>
+        </tr>
+        <tr>
+          <td class="num">16</td>
+          <td colspan="2">
+            Ushbu ma'lumotnoma berilgan muassasa:<br>
+            ${d.muassasa}
+          </td>
+          <td class="num">17</td>
+          <td colspan="2">Muassasa nomi: ТДИУ</td>
+        </tr>
+      </table>
+
+      <div class="doc-footer-section">
+        <div class="doc-footer-grid">
+          <div>
+            <div class="doc-footer-logo">
+              <svg viewBox="0 0 52 52" fill="none" style="width:28px;height:28px">
+                <rect x="23" y="4" width="6" height="18" rx="3" fill="#1e6fd9"/>
+                <rect x="23" y="30" width="6" height="18" rx="3" fill="#1e6fd9"/>
+                <rect x="4" y="23" width="18" height="6" rx="3" fill="#00aadd"/>
+                <rect x="30" y="23" width="18" height="6" rx="3" fill="#00aadd"/>
+              </svg>
+              <div>
+                <div class="doc-footer-logo-text">DMED</div>
+                <div class="doc-footer-logo-sub">Documents</div>
+              </div>
+            </div>
+          </div>
+          <div class="doc-footer-text">
+            Hujjat DMED Yagona tibbiy axborot tizimida yaratilgan. Hujjatning haqqoniyligini
+            ${window.location.origin}/doc/${DOC_ID} saytida hujjatning ID kodini kiritish, yoki QR-kod orqali
+            tekshirish mumkin.<br><br>
+            <strong>Hujjat ID:</strong> ${DOC_ID}<br>
+            <strong>Yaratilgan sana:</strong> ${d.sana}
+          </div>
+          <div class="doc-footer-pin-qr">
+            <div class="doc-pin-number">${pin}</div>
+            <div id="qr-code-container"></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Generate QR code
+    setTimeout(() => {
+      new QRCode(document.getElementById("qr-code-container"), {
+        text: docUrl,
+        width: 80,
+        height: 80,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }, 100);
+  }
+
+  // Auto-focus
+  if (DOC_ID && DOC_ID !== 'doc') {
+    inputs[0].focus();
+  }
+</script>
+</body>
+</html>
