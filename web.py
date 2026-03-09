@@ -1,9 +1,7 @@
 from flask import Flask, request, jsonify
-import json
-import os
+import json, os
 
 app = Flask(__name__)
-
 DB_FILE = "data/documents.json"
 
 def load_docs():
@@ -12,7 +10,10 @@ def load_docs():
             return json.load(f)
     return {}
 
-HTML_PAGE = r"""<!DOCTYPE html>
+# HTML uses DOUBLE braces {{ }} for literal JS braces (since we use .format())
+# We build the page as a plain string to avoid f-string issues with JS template literals
+
+HTML_PAGE = """<!DOCTYPE html>
 <html lang="uz">
 <head>
 <meta charset="UTF-8">
@@ -22,72 +23,84 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',sans-serif;background:#fff;min-height:100vh;color:#111827}
+
+/* HEADER */
 header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68px;display:flex;align-items:center;justify-content:space-between}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none}
-.logo-icon{width:52px;height:52px}
+.logo-icon{width:48px;height:48px}
 .logo-text{display:flex;flex-direction:column;line-height:1.1}
-.logo-dmed{font-size:28px;font-weight:800;color:#1a3a8f}
-.logo-docs{font-size:13px;font-weight:600;color:#1e6fd9}
-.lang-btn{display:flex;align-items:center;gap:8px;border:1.5px solid #dde3ef;border-radius:50px;padding:8px 16px;background:#fff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;color:#111827;cursor:pointer;transition:border-color .2s}
-.lang-btn:hover{border-color:#1e6fd9}
+.logo-dmed{font-size:26px;font-weight:800;color:#1a3a8f}
+.logo-docs{font-size:12px;font-weight:600;color:#1e6fd9}
+.lang-btn{display:flex;align-items:center;gap:8px;border:1.5px solid #dde3ef;border-radius:50px;padding:8px 16px;background:#fff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;color:#111827;cursor:pointer}
 .flag{display:flex;flex-direction:column;width:24px;height:15px;border-radius:3px;overflow:hidden}
 .f1{background:#1B96D4;flex:1}.f2{background:#fff;flex:1}.f3{background:#1EB53A;flex:1}
 
+/* PIN PAGE */
 #pin-page{display:flex;flex-direction:column;align-items:center;padding:80px 20px 60px}
-#pin-page h1{font-size:28px;font-weight:700;text-align:center;max-width:440px;margin-bottom:48px;line-height:1.3}
+#pin-page h1{font-size:26px;font-weight:700;text-align:center;max-width:440px;margin-bottom:48px;line-height:1.35}
 .pin-row{display:flex;gap:12px;margin-bottom:32px}
 .pin-input{width:64px;height:68px;border:1.5px solid #d1d9ea;border-radius:14px;background:#fff;font-family:'Inter',sans-serif;font-size:28px;font-weight:700;text-align:center;color:#111827;outline:none;transition:border-color .18s,box-shadow .18s;box-shadow:0 1px 4px rgba(0,0,0,.06)}
 .pin-input:focus{border-color:#1e6fd9;box-shadow:0 0 0 3px rgba(30,111,217,.12)}
-.btn-open{width:340px;height:54px;border-radius:12px;border:none;background:#e2e8f0;color:#94a3b8;font-family:'Inter',sans-serif;font-size:16px;font-weight:600;cursor:not-allowed;transition:background .2s,color .2s,box-shadow .2s}
+.btn-open{width:320px;height:52px;border-radius:12px;border:none;background:#e2e8f0;color:#94a3b8;font-family:'Inter',sans-serif;font-size:16px;font-weight:600;cursor:not-allowed;transition:background .2s,color .2s}
 .btn-open.active{background:#1e6fd9;color:#fff;cursor:pointer;box-shadow:0 4px 16px rgba(30,111,217,.25)}
 .btn-open.active:hover{background:#1557b8}
 .error-msg{margin-top:12px;height:20px;color:#ef4444;font-size:13px;font-weight:500;opacity:0;transition:opacity .2s}
 .error-msg.show{opacity:1}
 @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
 .shake{animation:shake .4s}
-.hint-card{margin-top:72px;display:flex;border-radius:16px;overflow:hidden;max-width:520px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e8edf5;background:#fff}
-.hint-left{background:#f1f5fb;padding:20px 18px 16px;min-width:175px;display:flex;flex-direction:column;gap:7px;justify-content:space-between}
-.doc-lines{display:flex;flex-direction:column;gap:7px}
+
+/* HINT CARD */
+.hint-card{margin-top:64px;display:flex;border-radius:16px;overflow:hidden;max-width:500px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e8edf5}
+.hint-left{background:#f1f5fb;padding:18px 16px 14px;min-width:160px;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
+.doc-lines{display:flex;flex-direction:column;gap:6px}
 .dl{height:7px;border-radius:4px;background:#c8d4e8}
 .dl.w100{width:100%}.dl.w80{width:80%}.dl.w60{width:60%}.dl.w90{width:90%}
-.doc-footer-hint{display:flex;align-items:center;gap:8px;margin-top:10px}
-.doc-pin-num{font-size:12px;font-weight:700;color:#6b7a9a;letter-spacing:1px}
-.qr-box{width:36px;height:36px;background:#1a2340;border-radius:4px;padding:4px;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(7,1fr);gap:1px}
+.doc-footer-hint{display:flex;align-items:center;gap:8px;margin-top:8px}
+.doc-pin-num{font-size:11px;font-weight:700;color:#6b7a9a;letter-spacing:1px}
+.qr-box{width:34px;height:34px;background:#1a2340;border-radius:3px;padding:3px;display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
 .qr-box .b{background:#fff;border-radius:1px}.qr-box .w{background:transparent}
-.hint-arrow{display:flex;align-items:center;padding:0 10px;background:#f1f5fb;color:#1e6fd9}
-.hint-right{padding:24px 22px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px}
-.hint-text{font-size:14px;font-weight:500;color:#6b7a9a;line-height:1.55}
-.pin-badge{display:inline-block;background:#a8d4f5;border-radius:10px;padding:8px 20px;font-size:26px;font-weight:800;color:#1a2340;letter-spacing:2px;width:fit-content}
+.hint-arrow{display:flex;align-items:center;padding:0 8px;background:#f1f5fb;color:#1e6fd9}
+.hint-right{padding:20px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px;background:#fff}
+.hint-text{font-size:13px;font-weight:500;color:#6b7a9a;line-height:1.5}
+.pin-badge{display:inline-block;background:#a8d4f5;border-radius:10px;padding:7px 18px;font-size:24px;font-weight:800;color:#1a2340;letter-spacing:2px}
 
-#doc-page{display:none;padding:20px;max-width:800px;margin:0 auto}
-.doc-wrapper{background:#fff;border:1px solid #ccc;padding:28px 32px;font-size:12px;line-height:1.5;font-family:'Times New Roman',Times,serif;color:#000}
-.doc-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;border-bottom:1px solid #000;padding-bottom:12px}
-.doc-header-left{font-size:11px;line-height:1.6}
-.doc-header-center{text-align:center;flex:1;padding:0 16px}
-.doc-emblem{width:70px;height:70px}
-.doc-title-block{text-align:center;margin-bottom:18px}
-.doc-title-block h2{font-size:13px;font-weight:bold;line-height:1.4}
-.doc-title-block p{font-size:12px}
-.doc-subtitle{text-align:center;margin-bottom:6px;font-size:12px}
-.doc-subtitle span{font-weight:bold}
-.doc-table{width:100%;border-collapse:collapse;margin-top:10px}
-.doc-table td{border:1px solid #000;padding:6px 8px;vertical-align:top;font-size:11.5px}
-.doc-table td.label{font-weight:bold}
-.doc-table td.num{width:24px;text-align:center;font-weight:bold}
-.doc-footer-section{margin-top:20px;border-top:2px solid #000;padding-top:14px}
-.doc-footer-grid{display:flex;align-items:flex-start;gap:20px}
-.doc-footer-logo{display:flex;align-items:center;gap:8px}
-.doc-footer-logo-text{font-size:20px;font-weight:800;color:#1a3a8f;font-family:'Inter',sans-serif}
-.doc-footer-logo-sub{font-size:10px;color:#1e6fd9;font-weight:600;font-family:'Inter',sans-serif}
-.doc-footer-text{flex:1;font-size:9.5px;line-height:1.55;color:#333;font-family:'Inter',sans-serif}
-.doc-footer-pin-qr{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
-.doc-pin-number{font-size:28px;font-weight:800;color:#000;font-family:'Inter',sans-serif;letter-spacing:2px}
-.print-btn{display:block;margin:20px auto 0;background:#1e6fd9;color:#fff;border:none;padding:12px 32px;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background .2s}
+/* DOC PAGE */
+#doc-page{display:none;padding:20px;max-width:820px;margin:0 auto}
+.print-btn{display:block;margin:16px auto;background:#1e6fd9;color:#fff;border:none;padding:11px 30px;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;cursor:pointer}
 .print-btn:hover{background:#1557b8}
+
+/* DOCUMENT STYLES */
+.doc-wrap{background:#fff;border:1px solid #bbb;padding:24px 28px;font-size:11.5px;line-height:1.5;font-family:'Times New Roman',Times,serif;color:#000}
+.doc-head{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #000;padding-bottom:10px;margin-bottom:14px}
+.doc-head-left{font-size:10.5px;line-height:1.7;text-align:center}
+.doc-head-center{flex:1;display:flex;justify-content:center;padding:0 10px}
+.doc-emblem{width:65px;height:65px}
+.doc-head-right{font-size:10.5px;text-align:right;min-width:140px}
+.doc-title{text-align:center;margin-bottom:14px}
+.doc-title h2{font-size:12.5px;font-weight:bold;line-height:1.4;margin-bottom:2px}
+.doc-title p{font-size:11.5px}
+.doc-musassasa{text-align:center;margin-bottom:8px;font-size:11.5px}
+.doc-musassasa b{font-weight:bold}
+
+/* MAIN TABLE - exact structure */
+.doc-table{width:100%;border-collapse:collapse;margin-top:8px}
+.doc-table td{border:1px solid #000;padding:5px 7px;vertical-align:top;font-size:11px;line-height:1.45}
+.doc-table .num{width:20px;text-align:center;font-weight:bold;background:#f9f9f9}
+
+/* DOC FOOTER */
+.doc-foot{margin-top:16px;border-top:2px solid #000;padding-top:12px;display:flex;align-items:flex-start;gap:16px}
+.doc-foot-logo{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.doc-foot-logo-name{font-size:18px;font-weight:800;color:#1a3a8f;font-family:'Inter',sans-serif;line-height:1}
+.doc-foot-logo-sub{font-size:9px;color:#1e6fd9;font-weight:600;font-family:'Inter',sans-serif}
+.doc-foot-text{flex:1;font-size:9px;line-height:1.6;color:#333;font-family:'Inter',sans-serif}
+.doc-foot-right{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0}
+.doc-foot-pin{font-size:26px;font-weight:800;color:#000;font-family:'Inter',sans-serif;letter-spacing:2px}
+
 @media print{
-  header,.print-btn,#pin-page{display:none !important}
-  #doc-page{display:block !important;padding:0}
-  body{background:white}
+  header,.print-btn,#pin-page{display:none!important}
+  #doc-page{display:block!important;padding:0;max-width:100%}
+  body{background:#fff}
+  .doc-wrap{border:none;padding:0}
 }
 </style>
 </head>
@@ -95,15 +108,15 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
 
 <header>
   <a class="logo" href="/">
-    <svg class="logo-icon" viewBox="0 0 52 52" fill="none">
-      <rect x="23" y="4" width="6" height="18" rx="3" fill="#1e6fd9"/>
-      <rect x="23" y="30" width="6" height="18" rx="3" fill="#1e6fd9"/>
-      <rect x="4" y="23" width="18" height="6" rx="3" fill="#00aadd"/>
-      <rect x="30" y="23" width="18" height="6" rx="3" fill="#00aadd"/>
-      <rect x="10" y="7" width="6" height="18" rx="3" fill="#4db8f0" transform="rotate(45 10 7)"/>
-      <rect x="29" y="27" width="6" height="18" rx="3" fill="#4db8f0" transform="rotate(45 29 27)"/>
-      <rect x="35" y="7" width="6" height="18" rx="3" fill="#4db8f0" transform="rotate(-45 35 7)"/>
-      <rect x="16" y="27" width="6" height="18" rx="3" fill="#4db8f0" transform="rotate(-45 16 27)"/>
+    <svg class="logo-icon" viewBox="0 0 48 48" fill="none">
+      <rect x="21" y="4" width="6" height="16" rx="3" fill="#1e6fd9"/>
+      <rect x="21" y="28" width="6" height="16" rx="3" fill="#1e6fd9"/>
+      <rect x="4" y="21" width="16" height="6" rx="3" fill="#00aadd"/>
+      <rect x="28" y="21" width="16" height="6" rx="3" fill="#00aadd"/>
+      <rect x="9" y="6" width="5" height="16" rx="2.5" fill="#4db8f0" transform="rotate(45 9 6)"/>
+      <rect x="27" y="24" width="5" height="16" rx="2.5" fill="#4db8f0" transform="rotate(45 27 24)"/>
+      <rect x="34" y="6" width="5" height="16" rx="2.5" fill="#4db8f0" transform="rotate(-45 34 6)"/>
+      <rect x="16" y="24" width="5" height="16" rx="2.5" fill="#4db8f0" transform="rotate(-45 16 24)"/>
     </svg>
     <div class="logo-text">
       <span class="logo-dmed">DMED</span>
@@ -116,6 +129,7 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
   </button>
 </header>
 
+<!-- PIN PAGE -->
 <div id="pin-page">
   <h1>Hujjatni ko'rish uchun PIN - kodni kiriting</h1>
   <div class="pin-row" id="pin-row">
@@ -126,6 +140,7 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
   </div>
   <button class="btn-open" id="open-btn" disabled onclick="checkPin()">Ochish</button>
   <div class="error-msg" id="error-msg">PIN kod noto'g'ri. Qayta urinib ko'ring.</div>
+
   <div class="hint-card">
     <div class="hint-left">
       <div class="doc-lines">
@@ -147,7 +162,7 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
       </div>
     </div>
     <div class="hint-arrow">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M5 12h14M13 6l6 6-6 6"/>
       </svg>
     </div>
@@ -158,168 +173,246 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
   </div>
 </div>
 
+<!-- DOCUMENT PAGE -->
 <div id="doc-page">
-  <button class="print-btn" onclick="window.print()">Chop etish</button>
-  <div class="doc-wrapper" id="doc-content"></div>
-  <button class="print-btn" onclick="window.print()">Chop etish</button>
+  <button class="print-btn" onclick="window.print()">&#128438; Chop etish</button>
+  <div id="doc-content"></div>
+  <button class="print-btn" onclick="window.print()">&#128438; Chop etish</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-const pathParts = window.location.pathname.split('/');
-const DOC_ID = (pathParts[1] === 'doc' && pathParts[2]) ? pathParts[2] : null;
+var pathParts = window.location.pathname.split('/');
+var DOC_ID = (pathParts[1] === 'doc' && pathParts[2]) ? pathParts[2] : null;
 
-const inputs = Array.from(document.querySelectorAll('.pin-input'));
-const btn = document.getElementById('open-btn');
-const errEl = document.getElementById('error-msg');
+var inputs = Array.from(document.querySelectorAll('.pin-input'));
+var btn = document.getElementById('open-btn');
+var errEl = document.getElementById('error-msg');
 
-inputs.forEach((inp, i) => {
-  inp.addEventListener('input', e => {
+inputs.forEach(function(inp, i) {
+  inp.addEventListener('input', function(e) {
     e.target.value = e.target.value.replace(/[^0-9]/g, '');
     if (e.target.value && i < 3) inputs[i+1].focus();
     updateBtn();
     errEl.classList.remove('show');
   });
-  inp.addEventListener('keydown', e => {
+  inp.addEventListener('keydown', function(e) {
     if (e.key === 'Backspace' && !inp.value && i > 0) {
       inputs[i-1].focus(); inputs[i-1].value = ''; updateBtn();
     }
     if (e.key === 'Enter') checkPin();
   });
-  inp.addEventListener('paste', e => {
-    const p = (e.clipboardData||window.clipboardData).getData('text').replace(/[^0-9]/g,'');
-    if (p.length >= 4) { inputs.forEach((x,j) => x.value=p[j]||''); inputs[3].focus(); updateBtn(); }
+  inp.addEventListener('paste', function(e) {
+    var p = (e.clipboardData||window.clipboardData).getData('text').replace(/[^0-9]/g,'');
+    if (p.length >= 4) { inputs.forEach(function(x,j){ x.value=p[j]||''; }); inputs[3].focus(); updateBtn(); }
     e.preventDefault();
   });
 });
 
 function updateBtn() {
-  const full = inputs.every(i => i.value);
+  var full = inputs.every(function(i){ return i.value; });
   btn.disabled = !full;
   btn.classList.toggle('active', full);
 }
 
-async function checkPin() {
-  const pin = inputs.map(i => i.value).join('');
+function checkPin() {
+  var pin = inputs.map(function(i){ return i.value; }).join('');
   if (pin.length < 4 || !DOC_ID) return;
   btn.textContent = 'Tekshirilmoqda...';
   btn.disabled = true;
-  try {
-    const res = await fetch('/verify', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({doc_id: DOC_ID, pin})
-    });
-    const data = await res.json();
+  fetch('/verify', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({doc_id: DOC_ID, pin: pin})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
     if (data.ok) {
       showDocument(data.doc, pin);
     } else {
       errEl.textContent = data.error || "PIN kod noto'g'ri";
       errEl.classList.add('show');
       document.getElementById('pin-row').classList.add('shake');
-      setTimeout(() => document.getElementById('pin-row').classList.remove('shake'), 400);
-      inputs.forEach(i => i.value = '');
+      setTimeout(function(){ document.getElementById('pin-row').classList.remove('shake'); }, 400);
+      inputs.forEach(function(i){ i.value=''; });
       inputs[0].focus();
       btn.textContent = 'Ochish';
       updateBtn();
     }
-  } catch(e) {
-    errEl.textContent = "Xatolik yuz berdi. Qayta urinib ko'ring.";
+  })
+  .catch(function() {
+    errEl.textContent = "Xatolik yuz berdi.";
     errEl.classList.add('show');
     btn.textContent = 'Ochish';
     btn.disabled = false;
     btn.classList.add('active');
-  }
+  });
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
 }
 
 function showDocument(d, pin) {
   document.getElementById('pin-page').style.display = 'none';
   document.getElementById('doc-page').style.display = 'block';
-  const docUrl = window.location.href;
+  var docUrl = window.location.href;
+  var origin = window.location.origin;
 
-  document.getElementById('doc-content').innerHTML =
-    '<div class="doc-header">' +
-      '<div class="doc-header-left">O\'zbekiston Respublikasi Sog\'liqni<br>saqlash vazirligi<br>34 \u2013 sonli oilaviy poliklinika</div>' +
-      '<div class="doc-header-center"><img class="doc-emblem" src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Emblem_of_Uzbekistan.svg/200px-Emblem_of_Uzbekistan.svg.png" alt="Gerb"></div>' +
-      '<div style="width:160px"></div>' +
-    '</div>' +
-    '<div class="doc-title-block">' +
-      '<h2>Ta\'lim olayotgan shaxslar uchun mehnatga layoqatsizlik ma\'lumotnomasi</h2>' +
-      '<p>Ro\'yhatga olingan sana: ' + d.sana + '</p>' +
-      '<p><strong>No ' + d.doc_number + '</strong></p>' +
-    '</div>' +
-    '<div class="doc-subtitle">Tibbiy muassasa nomi: <span>34 \u2013 sonli oilaviy poliklinika</span><br><em>(qaysi muassasa tomonidan berilgan)</em></div>' +
-    '<table class="doc-table">' +
-      '<tr>' +
-        '<td class="num">1</td>' +
-        '<td class="label" colspan="2">Vaqtincha mehnatga layoqatsiz fuqaro haqidagi ma\'lumotlar:<br>FISh: ' + d.fish + '<br>Jinsi: ' + d.jinsi + '<br>JShShIR: ' + d.jshshr + '<br>Yoshi: ' + d.yoshi + ' yosh<br>Bemorga qarindoshligi:</td>' +
-        '<td class="num">1a</td>' +
-        '<td colspan="2">Bemor bola haqidagi ma\'lumotlar:<br>FISh: \u2013<br>Jinsi: \u2013<br>JShShIR: \u2013<br>Yoshi: \u2013 yosh</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<td class="num">2</td><td colspan="2">Yashash manzili: ' + d.yashash + '</td>' +
-        '<td class="num">3</td><td colspan="2">Ish/o\'qish joyi: ' + d.ish_joyi + '</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<td class="num">4</td><td colspan="2">Biriktirilgan tibbiy muassasa:<br>34 \u2013 sonli oilaviy poliklinika</td>' +
-        '<td class="num">5</td><td colspan="2">Mehnatga layoqatsizlik sababi:<br>Kasallik</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<td class="num">6</td><td colspan="2">Tashxis (KXT-10 kodi va Nomi):<br>' + d.tashxis + '</td>' +
-        '<td class="num">7</td><td colspan="2">Davolovchi shifokor FISh: ' + d.shifokor + '<br>Bo\'lim boshlig\'i (mas\'ul shaxs) FISh:<br>' + d.boshlik + '</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<td class="num">8</td><td colspan="2">Yakuniy tashxis (Nomi va KXT-10 kodi):<br>' + d.tashxis.toUpperCase() + '</td>' +
-        '<td class="num">9</td><td colspan="2">VMK raisining FISh:</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<td class="num">10</td><td colspan="2">Yuqumli kasallikka chalingan bemor bilan<br>kontaktda bo\'lganligi haqidagi ma\'lumotlar: Yo\'q</td>' +
-        '<td class="num">11</td><td colspan="2">TIEK ma\'lumotlari:<br>Ko\'rikdan o\'tgan sanasi:<br>Xulosa:<br>TIEK raisi FISh:</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<td class="num">12</td><td colspan="2">Tartib: Ambulator<br>Tartib buzilganlik to\'g\'risida qaydlar: \u2013</td>' +
-        '<td class="num">13</td><td colspan="2">Ishdan ozod etilgan kunlar:<br>' + d.boshlanish + ' \u2013 ' + d.tugash + '</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<td class="num">14</td><td colspan="2">Vaqtincha boshqa ishga o\'tkazilsin: Yo\'q</td>' +
-        '<td class="num">15</td><td colspan="2">Boshqa shahardan kelgan bemorga mehnatga<br>layoqatsizlik varaqasini berish uchun ruhsat etiladi: Yo\'q</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<td class="num">16</td><td colspan="2">Ushbu ma\'lumotnoma berilgan muassasa:<br>' + d.muassasa + '</td>' +
-        '<td class="num">17</td><td colspan="2">Muassasa nomi: \u0422\u0414\u0418\u0423</td>' +
-      '</tr>' +
-    '</table>' +
-    '<div class="doc-footer-section">' +
-      '<div class="doc-footer-grid">' +
-        '<div class="doc-footer-logo">' +
-          '<svg viewBox="0 0 52 52" fill="none" style="width:28px;height:28px">' +
-            '<rect x="23" y="4" width="6" height="18" rx="3" fill="#1e6fd9"/>' +
-            '<rect x="23" y="30" width="6" height="18" rx="3" fill="#1e6fd9"/>' +
-            '<rect x="4" y="23" width="18" height="6" rx="3" fill="#00aadd"/>' +
-            '<rect x="30" y="23" width="18" height="6" rx="3" fill="#00aadd"/>' +
-          '</svg>' +
-          '<div><div class="doc-footer-logo-text">DMED</div><div class="doc-footer-logo-sub">Documents</div></div>' +
-        '</div>' +
-        '<div class="doc-footer-text">' +
-          'Hujjat DMED Yagona tibbiy axborot tizimida yaratilgan. Hujjatning haqqoniyligini ' +
-          window.location.origin + '/doc/' + DOC_ID + ' saytida hujjatning ID kodini kiritish, yoki QR-kod orqali tekshirish mumkin.<br><br>' +
-          '<strong>Hujjat ID:</strong> ' + DOC_ID + '<br>' +
-          '<strong>Yaratilgan sana:</strong> ' + d.sana +
-        '</div>' +
-        '<div class="doc-footer-pin-qr">' +
-          '<div class="doc-pin-number">' + pin + '</div>' +
-          '<div id="qr-code-container"></div>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
+  var html = '<div class="doc-wrap">'
+  /* ── HEADER ── */
+  + '<div class="doc-head">'
+  +   '<div class="doc-head-left">'
+  +     "O'zbekiston Respublikasi Sog'liqni<br>saqlash vazirligi<br>"
+  +     '34 &ndash; sonli oilaviy poliklinika'
+  +   '</div>'
+  +   '<div class="doc-head-center">'
+  +     '<img class="doc-emblem" src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Emblem_of_Uzbekistan.svg/200px-Emblem_of_Uzbekistan.svg.png" alt="Gerb">'
+  +   '</div>'
+  +   '<div class="doc-head-right"></div>'
+  + '</div>'
+
+  /* ── TITLE ── */
+  + '<div class="doc-title">'
+  +   '<h2>Ta\'lim olayotgan shaxslar uchun mehnatga layoqatsizlik ma\'lumotnomasi</h2>'
+  +   '<p>Ro\'yhatga olingan sana: ' + esc(d.sana) + '</p>'
+  +   '<p><strong>No ' + esc(d.doc_number) + '</strong></p>'
+  + '</div>'
+  + '<div class="doc-musassasa">'
+  +   'Tibbiy muassasa nomi: <b>34 &ndash; sonli oilaviy poliklinika</b><br>'
+  +   '<em>(qaysi muassasa tomonidan berilgan)</em>'
+  + '</div>'
+
+  /* ── MAIN TABLE ── */
+  + '<table class="doc-table">'
+
+  /* Row 1 */
+  + '<tr>'
+  +   '<td class="num">1</td>'
+  +   '<td style="width:38%"><b>Vaqtincha mehnatga layoqatsiz fuqaro haqidagi ma\'lumotlar:</b><br>'
+  +     'FISh: ' + esc(d.fish) + '<br>'
+  +     'Jinsi: ' + esc(d.jinsi) + '<br>'
+  +     'JShShIR: ' + esc(d.jshshr) + '<br>'
+  +     'Yoshi: ' + esc(d.yoshi) + ' yosh<br>'
+  +     'Bemorga qarindoshligi:'
+  +   '</td>'
+  +   '<td class="num">1a</td>'
+  +   '<td style="width:38%">Bemor bola haqidagi ma\'lumotlar:<br>'
+  +     'FISh: &ndash;<br>Jinsi: &ndash;<br>JShShIR: &ndash;<br>Yoshi: &ndash; yosh'
+  +   '</td>'
+  + '</tr>'
+
+  /* Row 2-3 */
+  + '<tr>'
+  +   '<td class="num">2</td>'
+  +   '<td>Yashash manzili: ' + esc(d.yashash) + '</td>'
+  +   '<td class="num">3</td>'
+  +   '<td>Ish/o\'qish joyi: ' + esc(d.ish_joyi) + '</td>'
+  + '</tr>'
+
+  /* Row 4-5 */
+  + '<tr>'
+  +   '<td class="num">4</td>'
+  +   '<td>Biriktirilgan tibbiy muassasa:<br>34 &ndash; sonli oilaviy poliklinika</td>'
+  +   '<td class="num">5</td>'
+  +   '<td>Mehnatga layoqatsizlik sababi:<br>Kasallik</td>'
+  + '</tr>'
+
+  /* Row 6-7 */
+  + '<tr>'
+  +   '<td class="num">6</td>'
+  +   '<td>Tashxis (KXT-10 kodi va Nomi):<br>' + esc(d.tashxis) + '</td>'
+  +   '<td class="num">7</td>'
+  +   '<td>Davolovchi shifokor FISh: ' + esc(d.shifokor) + '<br>'
+  +     'Bo\'lim boshlig\'i (mas\'ul shaxs) FISh:<br>' + esc(d.boshlik)
+  +   '</td>'
+  + '</tr>'
+
+  /* Row 8-9 */
+  + '<tr>'
+  +   '<td class="num">8</td>'
+  +   '<td>Yakuniy tashxis (Nomi va KXT-10 kodi):<br>' + esc(d.tashxis.toUpperCase()) + '</td>'
+  +   '<td class="num">9</td>'
+  +   '<td>VMK raisining FISh:</td>'
+  + '</tr>'
+
+  /* Row 10-11 */
+  + '<tr>'
+  +   '<td class="num">10</td>'
+  +   '<td>Yuqumli kasallikka chalingan bemor bilan<br>kontaktda bo\'lganligi haqidagi ma\'lumotlar: Yo\'q</td>'
+  +   '<td class="num">11</td>'
+  +   '<td>TIEK ma\'lumotlari:<br>Ko\'rikdan o\'tgan sanasi:<br>Xulosa:<br>TIEK raisi FISh:</td>'
+  + '</tr>'
+
+  /* Row 12-13 */
+  + '<tr>'
+  +   '<td class="num">12</td>'
+  +   '<td>Tartib: Ambulator<br>Tartib buzilganlik to\'g\'risida qaydlar: &ndash;</td>'
+  +   '<td class="num">13</td>'
+  +   '<td>Ishdan ozod etilgan kunlar:<br>' + esc(d.boshlanish) + ' &ndash; ' + esc(d.tugash) + '</td>'
+  + '</tr>'
+
+  /* Row 14-15 */
+  + '<tr>'
+  +   '<td class="num">14</td>'
+  +   '<td>Vaqtincha boshqa ishga o\'tkazilsin: Yo\'q</td>'
+  +   '<td class="num">15</td>'
+  +   '<td>Boshqa shahardan kelgan bemorga mehnatga<br>layoqatsizlik varaqasini berish uchun ruhsat etiladi: Yo\'q</td>'
+  + '</tr>'
+
+  /* Row 16-17 */
+  + '<tr>'
+  +   '<td class="num">16</td>'
+  +   '<td>Ushbu ma\'lumotnoma berilgan muassasa:<br>' + esc(d.muassasa) + '</td>'
+  +   '<td class="num">17</td>'
+  +   '<td>Muassasa nomi: \u0422\u0414\u0418\u0423</td>'
+  + '</tr>'
+
+  + '</table>'
+
+  /* ── FOOTER ── */
+  + '<div class="doc-foot">'
+  +   '<div class="doc-foot-logo">'
+  +     '<svg viewBox="0 0 48 48" fill="none" style="width:30px;height:30px">'
+  +       '<rect x="21" y="4" width="6" height="16" rx="3" fill="#1e6fd9"/>'
+  +       '<rect x="21" y="28" width="6" height="16" rx="3" fill="#1e6fd9"/>'
+  +       '<rect x="4" y="21" width="16" height="6" rx="3" fill="#00aadd"/>'
+  +       '<rect x="28" y="21" width="16" height="6" rx="3" fill="#00aadd"/>'
+  +     '</svg>'
+  +     '<div>'
+  +       '<div class="doc-foot-logo-name">DMED</div>'
+  +       '<div class="doc-foot-logo-sub">Documents</div>'
+  +     '</div>'
+  +   '</div>'
+  +   '<div class="doc-foot-text">'
+  +     'Hujjat DMED Yagona tibbiy axborot tizimida yaratilgan. '
+  +     'Hujjatning haqqoniyligini ' + origin + '/doc/' + DOC_ID + ' saytida '
+  +     'hujjatning ID kodini kiritish, yoki QR-kod orqali tekshirish mumkin.<br>'
+  +     '<b>Hujjat ID:</b> ' + DOC_ID + '<br>'
+  +     '<b>Yaratilgan sana:</b> ' + esc(d.sana)
+  +   '</div>'
+  +   '<div class="doc-foot-right">'
+  +     '<div class="doc-foot-pin">' + pin + '</div>'
+  +     '<div id="qr-container"></div>'
+  +   '</div>'
+  + '</div>'
+  + '</div>'; // end doc-wrap
+
+  document.getElementById('doc-content').innerHTML = html;
 
   setTimeout(function() {
-    new QRCode(document.getElementById("qr-code-container"), {
-      text: docUrl, width: 80, height: 80,
-      colorDark: "#000000", colorLight: "#ffffff",
+    new QRCode(document.getElementById('qr-container'), {
+      text: docUrl,
+      width: 80, height: 80,
+      colorDark: '#000', colorLight: '#fff',
       correctLevel: QRCode.CorrectLevel.M
     });
-  }, 100);
+  }, 150);
 }
 
 if (DOC_ID) inputs[0].focus();
@@ -329,14 +422,14 @@ if (DOC_ID) inputs[0].focus();
 
 @app.route("/")
 def index():
-    return HTML_PAGE
+    return HTML_PAGE, 200, {'Content-Type': 'text/html; charset=utf-8'}
 
 @app.route("/doc/<doc_id>")
 def doc_page(doc_id):
     docs = load_docs()
     if doc_id not in docs:
         return "<h2 style='font-family:sans-serif;text-align:center;margin-top:80px'>Hujjat topilmadi</h2>", 404
-    return HTML_PAGE
+    return HTML_PAGE, 200, {'Content-Type': 'text/html; charset=utf-8'}
 
 @app.route("/verify", methods=["POST"])
 def verify():
