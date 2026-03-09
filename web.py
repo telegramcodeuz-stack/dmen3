@@ -190,18 +190,27 @@ var btn = document.getElementById('open-btn');
 var errEl = document.getElementById('error-msg');
 
 inputs.forEach(function(inp, i) {
-  inp.addEventListener('input', function(e) {
-    e.target.value = e.target.value.replace(/[^0-9]/g, '');
-    if (e.target.value && i < 3) inputs[i+1].focus();
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Backspace') {
+      if (inp.value) { inp.value = ''; }
+      else if (i > 0) { inputs[i-1].value = ''; inputs[i-1].focus(); }
+      updateBtn(); e.preventDefault(); return;
+    }
+    if (e.key === 'Enter') { checkPin(); return; }
+    if (!/^[0-9]$/.test(e.key)) { e.preventDefault(); return; }
+    inp.value = e.key;
+    updateBtn();
+    if (i < 3) { inputs[i+1].focus(); inputs[i+1].select(); }
+    e.preventDefault();
+  });
+  inp.addEventListener('input', function() {
+    var v = inp.value.replace(/[^0-9]/g,'');
+    inp.value = v ? v.slice(-1) : '';
     updateBtn();
     errEl.classList.remove('show');
+    if (inp.value && i < 3) { inputs[i+1].focus(); inputs[i+1].select(); }
   });
-  inp.addEventListener('keydown', function(e) {
-    if (e.key === 'Backspace' && !inp.value && i > 0) {
-      inputs[i-1].focus(); inputs[i-1].value = ''; updateBtn();
-    }
-    if (e.key === 'Enter') checkPin();
-  });
+  inp.addEventListener('click', function() { inp.select(); });
   inp.addEventListener('paste', function(e) {
     var p = (e.clipboardData||window.clipboardData).getData('text').replace(/[^0-9]/g,'');
     if (p.length >= 4) { inputs.forEach(function(x,j){ x.value=p[j]||''; }); inputs[3].focus(); updateBtn(); }
@@ -210,9 +219,9 @@ inputs.forEach(function(inp, i) {
 });
 
 function updateBtn() {
-  var full = inputs.every(function(i){ return i.value; });
+  var full = inputs.every(function(x){ return x.value.length === 1; });
   btn.disabled = !full;
-  btn.classList.toggle('active', full);
+  if (full) { btn.classList.add('active'); } else { btn.classList.remove('active'); }
 }
 
 function checkPin() {
