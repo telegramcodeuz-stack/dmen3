@@ -138,7 +138,7 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
     <input class="pin-input" type="text" maxlength="1" inputmode="numeric" autocomplete="off" id="p2">
     <input class="pin-input" type="text" maxlength="1" inputmode="numeric" autocomplete="off" id="p3">
   </div>
-  <button class="btn-open" id="open-btn" disabled onclick="checkPin()">Ochish</button>
+  <button class="btn-open" id="open-btn" onclick="checkPin()">Ochish</button>
   <div class="error-msg" id="error-msg">PIN kod noto'g'ri. Qayta urinib ko'ring.</div>
 
   <div class="hint-card">
@@ -181,6 +181,125 @@ header{background:#fff;border-bottom:1px solid #e8edf5;padding:0 32px;height:68p
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+var pathParts = window.location.pathname.split('/');
+var DOC_ID = (pathParts[1] === 'doc' && pathParts[2]) ? pathParts[2] : null;
+
+var inputs = [];
+var btn;
+var errEl;
+
+window.onload = function() {
+  inputs = Array.from(document.querySelectorAll('.pin-input'));
+  btn = document.getElementById('open-btn');
+  errEl = document.getElementById('error-msg');
+
+  // Start disabled
+  btn.disabled = true;
+  btn.classList.remove('active');
+
+  inputs.forEach(function(inp, i) {
+    // Desktop keyboard
+    inp.addEventListener('keydown', function(e) {
+      if (e.key === 'Backspace') {
+        if (inp.value.length > 0) {
+          inp.value = '';
+        } else if (i > 0) {
+          inputs[i-1].value = '';
+          inputs[i-1].focus();
+        }
+        updateBtn();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === 'Enter') {
+        checkPin();
+        return;
+      }
+      if (!/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        return;
+      }
+      inp.value = e.key;
+      updateBtn();
+      if (i < 3) {
+        setTimeout(function(){ inputs[i+1].focus(); }, 0);
+      }
+      e.preventDefault();
+    });
+
+    // Mobile keyboard fallback
+    inp.addEventListener('input', function() {
+      var v = inp.value.replace(/[^0-9]/g, '');
+      inp.value = v ? v[v.length-1] : '';
+      updateBtn();
+      errEl.classList.remove('show');
+      if (inp.value && i < 3) {
+        setTimeout(function(){ inputs[i+1].focus(); }, 0);
+      }
+    });
+
+    inp.addEventListener('focus', function() { inp.select(); });
+  });
+
+  if (DOC_ID) inputs[0].focus();
+};
+
+function updateBtn() {
+  var count = 0;
+  inputs.forEach(function(inp){ if (inp.value.length === 1) count++; });
+  var full = (count === 4);
+  btn.disabled = !full;
+  if (full) {
+    btn.classList.add('active');
+  } else {
+    btn.classList.remove('active');
+  }
+}
+
+function checkPin() {
+  var pin = inputs.map(function(i){ return i.value; }).join('');
+  if (pin.length < 4) return;
+  if (!DOC_ID) {
+    errEl.textContent = "Hujjat ID topilmadi";
+    errEl.classList.add('show');
+    return;
+  }
+  btn.textContent = 'Tekshirilmoqda...';
+  btn.disabled = true;
+  fetch('/verify', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({doc_id: DOC_ID, pin: pin})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      showDocument(data.doc, pin);
+    } else {
+      errEl.textContent = data.error || "PIN kod noto\'g\'ri";
+      errEl.classList.add('show');
+      document.getElementById('pin-row').classList.add('shake');
+      setTimeout(function(){ document.getElementById('pin-row').classList.remove('shake'); }, 400);
+      inputs.forEach(function(inp){ inp.value = ''; });
+      btn.textContent = 'Ochish';
+      btn.disabled = true;
+      btn.classList.remove('active');
+      inputs[0].focus();
+    }
+  })
+  .catch(function() {
+    errEl.textContent = "Xatolik yuz berdi. Internet aloqasini tekshiring.";
+    errEl.classList.add('show');
+    btn.textContent = 'Ochish';
+    updateBtn();
+  });
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 <script>
 var pathParts = window.location.pathname.split('/');
 var DOC_ID = (pathParts[1] === 'doc' && pathParts[2]) ? pathParts[2] : null;
@@ -258,14 +377,6 @@ function checkPin() {
   });
 }
 
-function esc(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
-}
 
 function showDocument(d, pin) {
   document.getElementById('pin-page').style.display = 'none';
