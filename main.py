@@ -44,7 +44,7 @@ PHONE_NUMBERS = [
 ]
 
 # Humo kartalar: HUMO_CARDS env da vergul bilan
-# Misol: 9860 1234 5678 9001,9860 1234 5678 9002
+# Misol: 9860 3466 0594 5705,9860 1234 5678 9002
 HUMO_CARDS = [
     c.strip() for c in _os.environ.get("HUMO_CARDS", "").split(",")
     if c.strip()
@@ -71,11 +71,10 @@ if not _os.path.exists("/data"):
 # Humo kartalar ro'yxati — navbat bilan beriladi
 # ⬇️ O'z karta raqamlaringizni shu yerga yozing!
 HUMO_CARDS = [
-    "9860 XXXX XXXX 0001",   # karta 1 — o'zgartiring
-    "9860 XXXX XXXX 0002",   # karta 2 — o'zgartiring
-    "9860 XXXX XXXX 0003",   # karta 3 — o'zgartiring
-    "9860 XXXX XXXX 0004",   # karta 4 — o'zgartiring
-    "9860 XXXX XXXX 0005",   # karta 5 — o'zgartiring
+    "9860 3501 4339 8906",   # karta 1 — o'zgartiring
+    "9860 3566 0573 8935",   # karta 2 — o'zgartiring
+    "9860 3466 0594 5705",   # karta 3 — o'zgartiring
+  
 ]
 AI_PRICE           = 2000    # 1 ta AI test narxi (so'm)
 FILE_PRICE_PER_25  = 2000    # har 25 savol uchun narx (fayl orqali)
