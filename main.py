@@ -71,9 +71,11 @@ if not _os.path.exists("/data"):
 # Humo kartalar ro'yxati — navbat bilan beriladi
 # ⬇️ O'z karta raqamlaringizni shu yerga yozing!
 HUMO_CARDS = [
-    "9860 3501 4339 8906",   # karta 1 — o'zgartiring
-    "9860 3566 0573 8935",   # karta 2 — o'zgartiring
-    "9860 3466 0594 5705",   # karta 3 — o'zgartiring
+    "9860 XXXX XXXX 0001",   # karta 1 — o'zgartiring
+    "9860 XXXX XXXX 0002",   # karta 2 — o'zgartiring
+    "9860 XXXX XXXX 0003",   # karta 3 — o'zgartiring
+    "9860 XXXX XXXX 0004",   # karta 4 — o'zgartiring
+    "9860 XXXX XXXX 0005",   # karta 5 — o'zgartiring
 ]
 AI_PRICE           = 2000    # 1 ta AI test narxi (so'm)
 FILE_PRICE_PER_25  = 2000    # har 25 savol uchun narx (fayl orqali)
@@ -2174,36 +2176,26 @@ async def main():
 
     # ============================================================
     #  @HUMOCARDBOT XABAR TINGLOVCHI
-    #  Notify akkaunt (@humocardbot dan keladigan xabarlarni o'qiydi)
     # ============================================================
-    notify_client = None
-    for c in all_clients:
-        if account_phones.get(id(c)) == NOTIFY_PHONE:
-            notify_client = c
-            break
+    # notify_client global — /notify_ulash orqali o'rnatilishi mumkin
+    notify_client_holder = {"client": None}
 
-    if notify_client:
-        @notify_client.on(events.NewMessage(from_users="humocardbot"))
+    def setup_notify_listener(client):
+        """Notify client ga @humocardbot handler o'rnatish"""
+        @client.on(events.NewMessage(from_users="humocardbot"))
         async def on_humo_notify(event):
-            """@humocardbot dan kelgan xabarni parse qilish"""
             text = event.text or ""
             log.info(f"humocardbot xabari: {text[:150]}")
-
             amount = _parse_amount(text)
             card   = _parse_card(text)
-
             log.info(f"Parse natijasi: summa={amount}, karta={card}")
-
             if not amount:
                 log.warning(f"Summa aniqlanmadi: {text[:80]}")
                 return
             if not card:
                 log.warning(f"Karta aniqlanmadi: {text[:80]}")
                 return
-
             log.info(f"To'lov aniqlandi: karta={card}, summa={amount}")
-
-            # Shu kartaga pending to'lov bormi?
             con = sqlite3.connect(DB_FILE)
             row = con.execute(
                 """SELECT id, user_id, amount FROM payments
@@ -2213,14 +2205,10 @@ async def main():
                 (card,)
             ).fetchone()
             con.close()
-
             if not row:
                 log.warning(f"Mos to'lov topilmadi: karta={card}")
                 return
-
             pay_id, user_id, expected_amount = row
-
-            # Summa to'g'rimi?
             if amount < expected_amount:
                 await bot_client.send_message(
                     user_id,
@@ -2230,31 +2218,15 @@ async def main():
                     f"Farq: {expected_amount - amount:,} so'm qo'shimcha yuboring!"
                 )
                 return
-
-            # To'lovni tasdiqlash
             db_confirm_payment(pay_id)
             db_add_balance(user_id, amount, f"To'lov #{pay_id} tasdiqlandi")
             release_card(card)
-
             bal = db_get_balance(user_id)
             tests = bal // AI_PRICE
-
-            # Foydalanuvchi oldingi sozlamalarini tekshirish
             prev_state = user_states.get(user_id)
-
-            has_pending_ai = (
-                prev_state is not None and
-                prev_state.step == "wait_payment" and
-                prev_state.fan_name
-            )
-            has_pending_file = (
-                prev_state is not None and
-                prev_state.step == "wait_payment_file" and
-                prev_state.questions
-            )
-
+            has_pending_ai   = prev_state and prev_state.step == "wait_payment" and prev_state.fan_name
+            has_pending_file = prev_state and prev_state.step == "wait_payment_file" and prev_state.questions
             if has_pending_file:
-                # FAYL uchun to'lov tasdiqlandi → davom ettiramiz
                 q_count = prev_state.total_questions
                 price   = calc_file_price(q_count)
                 if bal >= price:
@@ -2273,83 +2245,192 @@ async def main():
                 else:
                     await bot_client.send_message(
                         user_id,
-                        f"✅ +{amount:,} so'm qo'shildi\n"
-                        f"⚠️ Hali yetarli emas. Kerak: {price:,} | Balans: {bal:,} so'm",
-                        buttons=[[Button.text(f"💳 {price - bal:,} so'm to'lash"),
+                        f"✅ +{amount:,} so'm | Balans: {bal:,} so'm\n"
+                        f"⚠️ Hali yetarli emas. Kerak: {price:,} so'm",
+                        buttons=[[Button.text(f"💳 {price-bal:,} so'm to'lash"),
                                   Button.text("🔙 Bosh menyu")]]
                     )
-
             elif has_pending_ai:
-                # To'lov tasdiqlandi + sozlamalar bor → davom ettiramiz
                 await bot_client.send_message(
                     user_id,
                     f"✅ **To'lov tasdiqlandi! +{amount:,} so'm**\n\n"
                     f"💼 Balans: **{bal:,} so'm**\n\n"
-                    f"🤖 Oldingi sozlamalaringiz topildi:\n"
+                    f"🤖 Oldingi sozlamalar:\n"
                     f"📚 {prev_state.fan_name}"
                     f"{f' | 📌 {prev_state.topic}' if prev_state.topic else ''}\n"
-                    f"🔢 {prev_state.q_count} ta | 🎯 {prev_state.difficulty} | 🌐 {prev_state.lang}\n\n"
-                    f"⏳ AI test tuzilmoqda, kuting..."
+                    f"🔢 {prev_state.q_count} ta | 🎯 {prev_state.difficulty}\n\n"
+                    f"⏳ AI test tuzilmoqda..."
                 )
-                # Balansdan yechib, AI test tuzishni boshlaymiz
                 try:
                     qs = await generate_questions(
                         prev_state.fan_name, prev_state.q_count,
                         prev_state.lang, prev_state.difficulty, prev_state.topic
                     )
                     if not qs:
-                        await bot_client.send_message(
-                            user_id,
-                            "❌ AI savol yarata olmadi! Qayta urining.",
-                            buttons=[[Button.text("🤖 AI test tuzish", resize=True),
-                                      Button.text("🔙 Bosh menyu", resize=True)]]
-                        )
+                        await bot_client.send_message(user_id, "❌ AI savol yarata olmadi!")
                         return
-
                     db_deduct_balance(user_id, AI_PRICE, f"AI test: {prev_state.fan_name}")
                     bal_left = db_get_balance(user_id)
-
                     prev_state.questions = qs
                     prev_state.total_questions = len(qs)
                     prev_state.per_variant = len(qs)
                     prev_state.step = "ask_time"
                     user_states[user_id] = prev_state
-
                     await bot_client.send_message(
                         user_id,
                         f"✅ **{len(qs)} ta savol tayyor!**\n"
-                        f"💰 Balans: {bal_left:,} so'm\n\n⏱ Vaqt tanlang:",
-                        buttons=[
-                            [Button.text("⏱ 15s"), Button.text("⏱ 30s")],
-                            [Button.text("⏱ 60s"), Button.text("⏱ Chegarasiz")],
-                        ]
+                        f"💰 Balans: {bal_left:,} so'm\n\n⏱ Vaqt:",
+                        buttons=[[Button.text("⏱ 15s"), Button.text("⏱ 30s")],
+                                 [Button.text("⏱ 60s"), Button.text("⏱ Chegarasiz")]]
                     )
                 except Exception as e:
                     log.error(f"AI xato (to'lovdan keyin): {e}")
-                    await bot_client.send_message(
-                        user_id,
-                        f"❌ AI xato: {e}\n\nQayta urining:",
-                        buttons=[[Button.text("🤖 AI test tuzish", resize=True)]]
-                    )
+                    await bot_client.send_message(user_id, f"❌ AI xato: {e}")
             else:
-                # Oddiy to'lov — faqat xabar yuborish
                 await bot_client.send_message(
                     user_id,
                     f"✅ **To'lov tasdiqlandi!**\n\n"
-                    f"💰 +{amount:,} so'm qo'shildi\n"
+                    f"💰 +{amount:,} so'm\n"
                     f"💼 Balans: **{bal:,} so'm**\n"
-                    f"🤖 Mumkin: **{tests} ta** AI test\n\n"
-                    f"Endi AI test tuzishingiz mumkin! 🎉",
-                    buttons=[
-                        [Button.text("🤖 AI test tuzish", resize=True)],
-                        [Button.text("🔙 Bosh menyu", resize=True)],
-                    ]
+                    f"🤖 {tests} ta AI test mumkin 🎉",
+                    buttons=[[Button.text("🤖 AI test tuzish", resize=True),
+                              Button.text("🔙 Bosh menyu", resize=True)]]
                 )
             log.info(f"✅ To'lov tasdiqlandi: user={user_id}, +{amount} so'm")
+        log.info(f"✅ @humocardbot tinglash aktiv: {client}")
 
-        log.info(f"✅ @humocardbot tinglash aktiv: {NOTIFY_PHONE}")
+    # Mavjud ulangan notify clientni sozlash
+    for c in all_clients:
+        if account_phones.get(id(c)) == NOTIFY_PHONE:
+            notify_client_holder["client"] = c
+            setup_notify_listener(c)
+            log.info(f"✅ Notify aktiv: {NOTIFY_PHONE}")
+            break
     else:
-        log.warning(f"⚠️ Notify akkaunt topilmadi: {NOTIFY_PHONE}")
+        log.warning(f"⚠️ Notify akkaunt topilmadi: {NOTIFY_PHONE} — /notify_ulash buyrug'ini ishlating")
+
+    # ============================================================
+    #  /notify_ulash — bot orqali notify akkauntni ulash
+    # ============================================================
+    @bot_client.on(events.NewMessage(pattern="/notify_ulash"))
+    async def cmd_notify_connect(event):
+        if not is_admin(event.sender_id): return
+        if notify_client_holder["client"]:
+            phone = account_phones.get(id(notify_client_holder["client"]), "?")
+            await event.respond(f"✅ Notify akkaunt allaqachon ulangan: `{phone}`")
+            return
+        if not NOTIFY_PHONE:
+            await event.respond("❌ NOTIFY_PHONE environment variable o'rnatilmagan!")
+            return
+        admin_states[event.sender_id] = {"step": "wait_notify_code", "phone": NOTIFY_PHONE}
+        await event.respond(
+            f"📱 **Notify akkaunt ulash**\n\n"
+            f"Raqam: `{NOTIFY_PHONE}`\n\n"
+            f"📲 Telegram kodi yuborilmoqda..."
+        )
+        try:
+            sess_dir = _os.path.dirname(DB_FILE)
+            session  = _os.path.join(sess_dir, f"userbot_{NOTIFY_PHONE.replace('+','').replace(' ','')}")
+            client   = TelegramClient(session, API_ID, API_HASH)
+            await client.connect()
+            result = await client.send_code_request(NOTIFY_PHONE)
+            admin_states[event.sender_id] = {
+                "step": "wait_notify_code",
+                "phone": NOTIFY_PHONE,
+                "client": client,
+                "hash": result.phone_code_hash,
+            }
+            await event.respond(
+                f"✅ Kod yuborildi!\n\n"
+                f"`{NOTIFY_PHONE}` ga kelgan kodni yuboring:\n"
+                f"_(Misol: 12345)_\n\n/cancel — bekor"
+            )
+        except Exception as e:
+            await event.respond(f"❌ Xato: {e}")
+            admin_states.pop(event.sender_id, None)
+
+    @bot_client.on(events.NewMessage(
+        func=lambda e: not e.file and not e.text.startswith("/")
+        and admin_states.get(e.sender_id, {}).get("step") == "wait_notify_code"
+        and e.sender_id in ADMIN_IDS
+    ))
+    async def on_notify_code(event):
+        uid   = event.sender_id
+        code  = event.text.strip().replace(" ", "")
+        astate = admin_states.get(uid, {})
+        client = astate.get("client")
+        phone  = astate.get("phone")
+        ph_hash = astate.get("hash")
+        if not client:
+            admin_states.pop(uid, None); return
+        try:
+            await client.sign_in(phone=phone, code=code, phone_code_hash=ph_hash)
+            # Ulandi — listener o'rnatamiz
+            all_clients.append(client)
+            account_phones[id(client)] = phone
+            notify_client_holder["client"] = client
+            setup_notify_listener(client)
+            admin_states.pop(uid, None)
+            await event.respond(
+                f"✅ **Notify akkaunt ulandi!**\n\n"
+                f"📱 `{phone}`\n"
+                f"🔔 @humocardbot xabarlari endi qabul qilinadi!"
+            )
+            log.info(f"Notify akkaunt ulandi: {phone}")
+        except SessionPasswordNeededError:
+            admin_states[uid]["step"] = "wait_notify_pass"
+            await event.respond("🔐 2FA parol kerak. Parolni yuboring:")
+        except PhoneCodeInvalidError:
+            await event.respond("❌ Kod noto'g'ri! Qayta yuboring:")
+        except Exception as e:
+            await event.respond(f"❌ Xato: {e}")
+            try: await client.disconnect()
+            except: pass
+            admin_states.pop(uid, None)
+
+    @bot_client.on(events.NewMessage(
+        func=lambda e: not e.file and not e.text.startswith("/")
+        and admin_states.get(e.sender_id, {}).get("step") == "wait_notify_pass"
+        and e.sender_id in ADMIN_IDS
+    ))
+    async def on_notify_pass(event):
+        uid    = event.sender_id
+        astate = admin_states.get(uid, {})
+        client = astate.get("client")
+        phone  = astate.get("phone")
+        if not client:
+            admin_states.pop(uid, None); return
+        try:
+            await client.sign_in(password=event.text.strip())
+            all_clients.append(client)
+            account_phones[id(client)] = phone
+            notify_client_holder["client"] = client
+            setup_notify_listener(client)
+            admin_states.pop(uid, None)
+            await event.respond(
+                f"✅ **Notify akkaunt ulandi!**\n📱 `{phone}`\n"
+                f"🔔 @humocardbot endi tinglanadi!"
+            )
+        except Exception as e:
+            await event.respond(f"❌ Parol xato: {e}")
+            try: await client.disconnect()
+            except: pass
+            admin_states.pop(uid, None)
+            """@humocardbot dan kelgan xabarni parse qilish"""
+            text = event.text or ""
+            log.info(f"humocardbot xabari: {text[:150]}")
+
+            amount = _parse_amount(text)
+            card   = _parse_card(text)
+
+            log.info(f"Parse natijasi: summa={amount}, karta={card}")
+
+            if not amount:
+                log.warning(f"Summa aniqlanmadi: {text[:80]}")
+                return
+            if not card:
+                log.warning(f"Karta aniqlanmadi: {text[:80]}")
+                return
 
     # ============================================================
     #  YORDAMCHI: XABARDAN SUMMA VA KARTA AJRATIB OLISH
