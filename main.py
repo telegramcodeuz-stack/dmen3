@@ -330,8 +330,13 @@ def db_init():
             source      TEXT DEFAULT 'ai',
             created_at  TEXT DEFAULT ''
         );
+
+        CREATE TABLE IF NOT EXISTS sessions (
+            phone       TEXT PRIMARY KEY,
+            session_data TEXT NOT NULL,
+            updated_at  TEXT DEFAULT ''
+        );
     """)
-    # Eski jadvalga ustun qo'shish (mavjud DB uchun)
     for col_sql in [
         "ALTER TABLE users ADD COLUMN balance INTEGER DEFAULT 0",
     ]:
@@ -342,6 +347,50 @@ def db_init():
             pass
     con.commit()
     con.close()
+
+
+def db_save_session(phone: str, session_path: str):
+    """Sessiya faylini DB ga saqlash (base64)"""
+    import base64
+    if not _os.path.exists(session_path + ".session"):
+        return
+    with open(session_path + ".session", "rb") as f:
+        data = base64.b64encode(f.read()).decode()
+    con = sqlite3.connect(DB_FILE)
+    con.execute("""
+        INSERT INTO sessions (phone, session_data, updated_at)
+        VALUES (?, ?, datetime('now','localtime'))
+        ON CONFLICT(phone) DO UPDATE SET
+            session_data = excluded.session_data,
+            updated_at   = excluded.updated_at
+    """, (phone, data))
+    con.commit()
+    con.close()
+    log.info(f"Sessiya DB ga saqlandi: {phone}")
+
+
+def db_load_session(phone: str, session_path: str) -> bool:
+    """DB dan sessiya faylini tiklash"""
+    import base64
+    con = sqlite3.connect(DB_FILE)
+    row = con.execute(
+        "SELECT session_data FROM sessions WHERE phone=?", (phone,)
+    ).fetchone()
+    con.close()
+    if not row:
+        return False
+    try:
+        data = base64.b64decode(row[0].encode())
+        sess_dir = _os.path.dirname(session_path)
+        if sess_dir:
+            _os.makedirs(sess_dir, exist_ok=True)
+        with open(session_path + ".session", "wb") as f:
+            f.write(data)
+        log.info(f"Sessiya DB dan tiklandi: {phone}")
+        return True
+    except Exception as e:
+        log.error(f"Sessiya tiklash xato: {e}")
+        return False
 
 
 def db_save_quiz(user_id: int, fan_name: str, q_count: int,
@@ -668,6 +717,10 @@ async def pool_add(client, phone):
     account_pool.append(client)
     account_busy[id(client)] = False
     account_phones[id(client)] = phone
+    # Sessiyani DB ga saqlash
+    sess_dir = _os.path.dirname(DB_FILE)
+    session  = _os.path.join(sess_dir, f"userbot_{phone.replace('+','').replace(' ','')}")
+    db_save_session(phone, session)
 
 async def pool_remove(phone) -> bool:
     for c in account_pool:
@@ -920,21 +973,29 @@ async def main():
     for phone in load_phones():
         try:
             sess_dir = _os.path.dirname(DB_FILE)
-            session = _os.path.join(sess_dir, f"userbot_{phone.replace('+','').replace(' ','')}")
+            session  = _os.path.join(sess_dir, f"userbot_{phone.replace('+','').replace(' ','')}")
+
+            # DB dan sessiyani tiklash (sessiya fayli yo'q bo'lsa)
+            if not _os.path.exists(session + ".session"):
+                if db_load_session(phone, session):
+                    log.info(f"Sessiya DB dan tiklandi: {phone}")
+
             client = TelegramClient(session, API_ID, API_HASH)
 
-            # 2FA paroli ko'rinadigan qilib so'rash
-            async def custom_password():
+            async def password_input():
                 pwd = input(f"🔐 2FA paroli ({phone}): ")
                 return pwd
 
-            await client.start(phone=phone, password=custom_password)
+            await client.start(phone=phone, password=password_input)
+
+            # Sessiyani DB ga saqlash — keyingi restart uchun
+            db_save_session(phone, session)
+
             all_clients.append(client)
             account_phones[id(client)] = phone
 
-            # NOTIFY_PHONE faqat bildirishnoma uchun — quiz pool ga qo'shilmaydi
             if phone == NOTIFY_PHONE:
-                log.info(f"Notify akkaunt ulandi (pool ga qo'shilmadi): {phone}")
+                log.info(f"Notify akkaunt ulandi: {phone}")
             else:
                 account_pool.append(client)
                 account_busy[id(client)] = False
@@ -2315,6 +2376,7 @@ async def main():
     @bot_client.on(events.NewMessage(pattern="/notify_ulash"))
     async def cmd_notify_connect(event):
         if not is_admin(event.sender_id): return
+
         if notify_client_holder["client"]:
             phone = account_phones.get(id(notify_client_holder["client"]), "?")
             await event.respond(f"✅ Notify akkaunt allaqachon ulangan: `{phone}`")
@@ -2323,18 +2385,43 @@ async def main():
             await event.respond("❌ NOTIFY_PHONE environment variable o'rnatilmagan!")
             return
 
-        await event.respond(
-            f"📱 **Notify akkaunt ulash**\n\n"
-            f"Raqam: `{NOTIFY_PHONE}`\n\n"
-            f"📲 Kod yuborilmoqda..."
-        )
+        # Agar avvalgi urinish hali aktiv bo'lsa — faqat kod so'raymiz
+        existing = admin_states.get(event.sender_id, {})
+        if existing.get("step") == "wait_notify_code" and existing.get("client"):
+            await event.respond(
+                f"⏳ Oldingi kod hali aktiv!\n\n"
+                f"`{NOTIFY_PHONE}` ga kelgan kodni yuboring:\n"
+                f"_(yoki /notify_yangi_kod — yangi kod olish)_"
+            )
+            return
+
+        await event.respond(f"📲 `{NOTIFY_PHONE}` ga kod yuborilmoqda...")
 
         try:
             sess_dir = _os.path.dirname(DB_FILE)
             session  = _os.path.join(sess_dir, f"userbot_{NOTIFY_PHONE.replace('+','').replace(' ','')}")
-            client   = TelegramClient(session, API_ID, API_HASH)
+
+            # Eski sessiya bo'lsa — avval undan urinib ko'ramiz
+            if db_load_session(NOTIFY_PHONE, session):
+                client = TelegramClient(session, API_ID, API_HASH)
+                await client.connect()
+                if await client.is_user_authorized():
+                    all_clients.append(client)
+                    account_phones[id(client)] = NOTIFY_PHONE
+                    notify_client_holder["client"] = client
+                    setup_notify_listener(client)
+                    await event.respond(
+                        f"✅ **Sessiya tiklandi! Kod shart emas.**\n\n"
+                        f"📱 `{NOTIFY_PHONE}`\n"
+                        f"🔔 @humocardbot xabarlari qabul qilinadi!"
+                    )
+                    return
+                await client.disconnect()
+
+            client = TelegramClient(session, API_ID, API_HASH)
             await client.connect()
             result = await client.send_code_request(NOTIFY_PHONE)
+
             admin_states[event.sender_id] = {
                 "step":   "wait_notify_code",
                 "phone":  NOTIFY_PHONE,
@@ -2342,13 +2429,14 @@ async def main():
                 "hash":   result.phone_code_hash,
             }
             await event.respond(
-                f"✅ Kod yuborildi!\n\n"
-                f"`{NOTIFY_PHONE}` ga kelgan **SMS/Telegram kodni** yuboring\n"
-                f"_(Misol: 1 2 3 4 5 — bo'shliq bilan yoki birga)_\n\n"
-                f"/cancel — bekor"
+                f"✅ **Kod yuborildi!**\n\n"
+                f"📱 `{NOTIFY_PHONE}` ga kelgan kodni yuboring\n"
+                f"_(bo'shliqsiz: 12345)_\n\n"
+                f"⚠️ Kodni **2 daqiqa ichida** yuboring!\n"
+                f"/cancel — bekor qilish"
             )
         except Exception as e:
-            await event.respond(f"❌ Xato: {e}")
+            await event.respond(f"❌ Xato: {e}\n\nQayta urinish: /notify_ulash")
             admin_states.pop(event.sender_id, None)
 
     @bot_client.on(events.NewMessage(
@@ -2367,11 +2455,14 @@ async def main():
             admin_states.pop(uid, None); return
         try:
             await client.sign_in(phone=phone, code=code, phone_code_hash=ph_hash)
-            # Ulandi — listener o'rnatamiz
             all_clients.append(client)
             account_phones[id(client)] = phone
             notify_client_holder["client"] = client
             setup_notify_listener(client)
+            # Sessiyani DB ga saqlash
+            sess_dir = _os.path.dirname(DB_FILE)
+            session  = _os.path.join(sess_dir, f"userbot_{phone.replace('+','').replace(' ','')}")
+            db_save_session(phone, session)
             admin_states.pop(uid, None)
             await event.respond(
                 f"✅ **Notify akkaunt ulandi!**\n\n"
@@ -2408,6 +2499,10 @@ async def main():
             account_phones[id(client)] = phone
             notify_client_holder["client"] = client
             setup_notify_listener(client)
+            # Sessiyani DB ga saqlash
+            sess_dir = _os.path.dirname(DB_FILE)
+            session  = _os.path.join(sess_dir, f"userbot_{phone.replace('+','').replace(' ','')}")
+            db_save_session(phone, session)
             admin_states.pop(uid, None)
             await event.respond(
                 f"✅ **Notify akkaunt ulandi!**\n📱 `{phone}`\n"
@@ -2418,9 +2513,6 @@ async def main():
             try: await client.disconnect()
             except: pass
             admin_states.pop(uid, None)
-            """@humocardbot dan kelgan xabarni parse qilish"""
-            text = event.text or ""
-            log.info(f"humocardbot xabari: {text[:150]}")
 
             amount = _parse_amount(text)
             card   = _parse_card(text)
