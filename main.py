@@ -71,9 +71,9 @@ if not _os.path.exists("/data"):
 # Humo kartalar ro'yxati — navbat bilan beriladi
 # ⬇️ O'z karta raqamlaringizni shu yerga yozing!
 HUMO_CARDS = [
-   "9860 3501 4339 8906",   # karta 1 — o'zgartiring
+    "9860 3501 4339 8906",   # karta 1 — o'zgartiring
     "9860 3566 0573 8935",   # karta 2 — o'zgartiring
-    "9860 3466 0594 5705", 
+    "9860 3466 0594 5705",   # karta 3 — o'zgartiring
 ]
 AI_PRICE           = 2000    # 1 ta AI test narxi (so'm)
 FILE_PRICE_PER_25  = 2000    # har 25 savol uchun narx (fayl orqali)
@@ -1092,8 +1092,11 @@ async def main():
         adm = is_admin(uid)
         log.info(f"Fayl keldi: user={uid}")
 
-        if admin_states.get(uid, {}).get("step"):
-            log.info(f"Admin holati aktiv, fayl ignore: user={uid}")
+        # Faqat fayl kutilayotgan holatlarda davom etamiz
+        # Boshqa admin holatlarda (masalan wait_phone) — ignore
+        astate_step = admin_states.get(uid, {}).get("step", "")
+        if astate_step and astate_step not in ("wait_session_file", "wait_db_file"):
+            log.info(f"Admin holati aktiv ({astate_step}), fayl ignore: user={uid}")
             return
 
         msg = await event.respond("📥 O'qilmoqda...")
@@ -1695,6 +1698,15 @@ async def main():
                 [Button.text("🗑 Navbatni tozalash"), Button.text("🔙 Bosh menyu")],
             ]
         )
+
+    @bot_client.on(events.NewMessage(pattern="/cancel"))
+    async def cmd_cancel(event):
+        uid = event.sender_id
+        if uid in admin_states:
+            admin_states.pop(uid)
+            await event.respond("❌ Bekor qilindi.", buttons=main_menu(is_admin(uid)))
+        else:
+            await event.respond("Hech narsa bekor qilinmadi.")
 
     @bot_client.on(events.NewMessage(pattern="/admin"))
     async def cmd_admin(event):
