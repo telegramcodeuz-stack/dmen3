@@ -2445,11 +2445,11 @@ async def main():
         and e.sender_id in ADMIN_IDS
     ))
     async def on_notify_code(event):
-        uid   = event.sender_id
-        code  = event.text.strip().replace(" ", "")
+        uid    = event.sender_id
+        code   = event.text.strip().replace(" ", "")
         astate = admin_states.get(uid, {})
-        client = astate.get("client")
-        phone  = astate.get("phone")
+        client  = astate.get("client")
+        phone   = astate.get("phone")
         ph_hash = astate.get("hash")
         if not client:
             admin_states.pop(uid, None); return
@@ -2459,7 +2459,6 @@ async def main():
             account_phones[id(client)] = phone
             notify_client_holder["client"] = client
             setup_notify_listener(client)
-            # Sessiyani DB ga saqlash
             sess_dir = _os.path.dirname(DB_FILE)
             session  = _os.path.join(sess_dir, f"userbot_{phone.replace('+','').replace(' ','')}")
             db_save_session(phone, session)
@@ -2476,10 +2475,26 @@ async def main():
         except PhoneCodeInvalidError:
             await event.respond("❌ Kod noto'g'ri! Qayta yuboring:")
         except Exception as e:
-            await event.respond(f"❌ Xato: {e}")
-            try: await client.disconnect()
-            except: pass
-            admin_states.pop(uid, None)
+            err = str(e).lower()
+            # Kod eskirgan bo'lsa — avtomatik yangi kod yuboramiz
+            if any(x in err for x in ["expired", "signinrequest", "phone_code_expired", "code_expired"]):
+                try:
+                    result = await client.send_code_request(phone)
+                    admin_states[uid]["hash"] = result.phone_code_hash
+                    await event.respond(
+                        f"⚠️ **Kod eskirdi — yangi kod yuborildi!**\n\n"
+                        f"`{phone}` ga kelgan yangi kodni yuboring:"
+                    )
+                except Exception as e2:
+                    await event.respond(f"❌ Yangi kod yuborishda xato: {e2}\n\nQayta: /notify_ulash")
+                    try: await client.disconnect()
+                    except: pass
+                    admin_states.pop(uid, None)
+            else:
+                await event.respond(f"❌ Xato: {e}\n\nQayta urinish: /notify_ulash")
+                try: await client.disconnect()
+                except: pass
+                admin_states.pop(uid, None)
 
     @bot_client.on(events.NewMessage(
         func=lambda e: not e.file and not e.text.startswith("/")
