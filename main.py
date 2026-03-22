@@ -44,7 +44,7 @@ PHONE_NUMBERS = [
 ]
 
 # Humo kartalar: HUMO_CARDS env da vergul bilan
-# Misol: 9860 3466 0594 5705,9860 1234 5678 9002
+# Misol: 9860 1234 5678 9001,9860 1234 5678 9002
 HUMO_CARDS = [
     c.strip() for c in _os.environ.get("HUMO_CARDS", "").split(",")
     if c.strip()
@@ -71,10 +71,9 @@ if not _os.path.exists("/data"):
 # Humo kartalar ro'yxati — navbat bilan beriladi
 # ⬇️ O'z karta raqamlaringizni shu yerga yozing!
 HUMO_CARDS = [
-    "9860 3501 4339 8906",   # karta 1 — o'zgartiring
+   "9860 3501 4339 8906",   # karta 1 — o'zgartiring
     "9860 3566 0573 8935",   # karta 2 — o'zgartiring
-    "9860 3466 0594 5705",   # karta 3 — o'zgartiring
-  
+    "9860 3466 0594 5705", 
 ]
 AI_PRICE           = 2000    # 1 ta AI test narxi (so'm)
 FILE_PRICE_PER_25  = 2000    # har 25 savol uchun narx (fayl orqali)
@@ -114,12 +113,12 @@ def db_save_user(user_id: int, first_name: str = "",
     con = sqlite3.connect(DB_FILE)
     con.execute("""
         INSERT INTO users (user_id, first_name, last_name, username, created_at, last_seen)
-        VALUES (?, ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))
+        VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
         ON CONFLICT(user_id) DO UPDATE SET
             first_name = excluded.first_name,
             last_name  = excluded.last_name,
             username   = excluded.username,
-            last_seen  = datetime('now','localtime')
+            last_seen  = datetime('now')
     """, (user_id, first_name or "", last_name or "", username or ""))
     con.commit()
     con.close()
@@ -172,7 +171,7 @@ def db_add_balance(user_id: int, amount: int, reason: str = ""):
     )
     con.execute(
         """INSERT INTO balance_log (user_id, amount, reason, created_at)
-           VALUES (?, ?, ?, datetime('now','localtime'))""",
+           VALUES (?, ?, ?, datetime('now'))""",
         (user_id, amount, reason)
     )
     con.commit()
@@ -193,7 +192,7 @@ def db_deduct_balance(user_id: int, amount: int, reason: str = "") -> bool:
     )
     con.execute(
         """INSERT INTO balance_log (user_id, amount, reason, created_at)
-           VALUES (?, ?, ?, datetime('now','localtime'))""",
+           VALUES (?, ?, ?, datetime('now'))""",
         (user_id, -amount, reason)
     )
     con.commit()
@@ -208,8 +207,8 @@ def db_create_payment(user_id: int, card_num: str, amount: int) -> int:
         """INSERT INTO payments
            (user_id, card_num, amount, status, created_at, expires_at)
            VALUES (?, ?, ?, 'pending',
-                   datetime('now','localtime'),
-                   datetime('now','localtime','+3 minutes'))""",
+                   datetime('now'),
+                   datetime('now','+3 minutes'))""",
         (user_id, card_num, amount)
     )
     pay_id = cur.lastrowid
@@ -224,7 +223,7 @@ def db_get_pending(user_id: int) -> Optional[tuple]:
     row = con.execute(
         """SELECT id, card_num, amount, expires_at FROM payments
            WHERE user_id=? AND status='pending'
-           AND expires_at > datetime('now','localtime')
+           AND expires_at > datetime('now')
            ORDER BY id DESC LIMIT 1""",
         (user_id,)
     ).fetchone()
@@ -242,7 +241,7 @@ def db_confirm_payment(pay_id: int) -> Optional[tuple]:
     if row:
         con.execute(
             """UPDATE payments SET status='confirmed',
-               paid_at=datetime('now','localtime') WHERE id=?""",
+               paid_at=datetime('now') WHERE id=?""",
             (pay_id,)
         )
         con.commit()
@@ -255,7 +254,7 @@ def db_expire_old():
     con = sqlite3.connect(DB_FILE)
     expired = con.execute(
         """SELECT id, card_num FROM payments WHERE status='pending'
-           AND expires_at < datetime('now','localtime')"""
+           AND expires_at < datetime('now')"""
     ).fetchall()
     for pay_id, card_num in expired:
         con.execute(
@@ -274,7 +273,7 @@ def db_payment_stats() -> dict:
     ).fetchone()[0]
     today = con.execute(
         """SELECT COALESCE(SUM(amount),0) FROM payments
-           WHERE status='confirmed' AND DATE(paid_at)=DATE('now','localtime')"""
+           WHERE status='confirmed' AND DATE(paid_at)=DATE('now')"""
     ).fetchone()[0]
     pending = con.execute(
         "SELECT COUNT(*) FROM payments WHERE status='pending'"
@@ -358,7 +357,7 @@ def db_save_session(phone: str, session_path: str):
     con = sqlite3.connect(DB_FILE)
     con.execute("""
         INSERT INTO sessions (phone, session_data, updated_at)
-        VALUES (?, ?, datetime('now','localtime'))
+        VALUES (?, ?, datetime('now'))
         ON CONFLICT(phone) DO UPDATE SET
             session_data = excluded.session_data,
             updated_at   = excluded.updated_at
@@ -401,7 +400,7 @@ def db_save_quiz(user_id: int, fan_name: str, q_count: int,
     cur.execute("""
         INSERT INTO quizzes
         (user_id, fan_name, q_count, variant_num, url, time_choice, order_type, source, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     """, (user_id, fan_name, q_count, variant_num, url, time_choice, order_type, source))
     quiz_id = cur.lastrowid
     con.commit()
@@ -2260,7 +2259,7 @@ async def main():
             row = con.execute(
                 """SELECT id, user_id, amount FROM payments
                    WHERE card_num=? AND status='pending'
-                   AND expires_at > datetime('now','localtime')
+                   AND expires_at > datetime('now')
                    ORDER BY id DESC LIMIT 1""",
                 (card,)
             ).fetchone()
@@ -2433,7 +2432,7 @@ async def main():
             con = sqlite3.connect(DB_FILE)
             con.execute("""
                 INSERT INTO sessions (phone, session_data, updated_at)
-                VALUES (?, ?, datetime('now','localtime'))
+                VALUES (?, ?, datetime('now'))
                 ON CONFLICT(phone) DO UPDATE SET
                     session_data = excluded.session_data,
                     updated_at   = excluded.updated_at
