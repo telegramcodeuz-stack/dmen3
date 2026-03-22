@@ -71,9 +71,9 @@ if not _os.path.exists("/data"):
 # Humo kartalar ro'yxati — navbat bilan beriladi
 # ⬇️ O'z karta raqamlaringizni shu yerga yozing!
 HUMO_CARDS = [
-    "9860 3501 4339 8906",   # karta 1 — o'zgartiring
+   "9860 3501 4339 8906",   # karta 1 — o'zgartiring
     "9860 3566 0573 8935",   # karta 2 — o'zgartiring
-    "9860 3466 0594 5705",   # karta 3 — o'zgartiring
+    "9860 3466 0594 5705",   # kart
 ]
 AI_PRICE           = 2000    # 1 ta AI test narxi (so'm)
 FILE_PRICE_PER_25  = 2000    # har 25 savol uchun narx (fayl orqali)
@@ -1693,9 +1693,10 @@ async def main():
             buttons=[
                 [Button.text("👥 Userlar ro'yxati"), Button.text("💳 To'lovlar")],
                 [Button.text("➕ Akkaunt qo'shish"), Button.text("➖ Akkaunt o'chirish")],
-                [Button.text("📊 Holat"),            Button.text("📋 Navbat")],
-                [Button.text("⬇️ DB yuklash"),        Button.text("⬆️ DB yuklash (yangi)")],
-                [Button.text("🗑 Navbatni tozalash"), Button.text("🔙 Bosh menyu")],
+                [Button.text("📤 Sessiya yuklash"),   Button.text("📋 Navbat")],
+                [Button.text("📊 Holat"),             Button.text("⬇️ DB yuklash")],
+                [Button.text("⬆️ DB yuklash (yangi)"),Button.text("🗑 Navbatni tozalash")],
+                [Button.text("🔙 Bosh menyu")],
             ]
         )
 
@@ -1844,7 +1845,7 @@ async def main():
         and e.text.strip() in ["➕ Akkaunt qo'shish","➖ Akkaunt o'chirish",
                                 "📊 Holat","📋 Navbat","🗑 Navbatni tozalash",
                                 "🔙 Admin panel", "👥 Userlar ro'yxati",
-                                "💳 To'lovlar",
+                                "💳 To'lovlar", "📤 Sessiya yuklash",
                                 "⬇️ DB yuklash", "⬆️ DB yuklash (yangi)"]
     ))
     async def admin_btns(event):
@@ -1854,6 +1855,27 @@ async def main():
         if text == "🔙 Admin panel":
             admin_states.pop(uid, None)
             await _show_admin(event)
+
+        elif text == "📤 Sessiya yuklash":
+            admin_states[uid] = {"step": "wait_session_file"}
+            # Mavjud akkauntlarni ko'rsatish
+            existing = [account_phones.get(id(c), "?") for c in account_pool]
+            notify_p = account_phones.get(id(notify_client_holder.get("client")), "") if notify_client_holder.get("client") else ""
+            lines = ["📤 **Sessiya fayli yuklash**\n"]
+            lines.append("Hozirgi akkauntlar:")
+            for p in existing:
+                lines.append(f"  🟢 {p}")
+            if notify_p:
+                lines.append(f"  🔔 {notify_p} (notify)")
+            if not existing and not notify_p:
+                lines.append("  (yo'q)")
+            lines.append("\n`.session` faylini yuboring:")
+            lines.append("_(Misol: userbot_998901234567.session)_\n")
+            lines.append("/cancel — bekor")
+            await event.respond(
+                "\n".join(lines),
+                buttons=[[Button.text("🔙 Admin panel")]]
+            )
 
         elif text == "⬇️ DB yuklash":
             # /dbyuklash bilan bir xil
@@ -2454,15 +2476,54 @@ async def main():
 
             admin_states.pop(uid, None)
 
-            # Notify akkauntmi yoki quiz akkauntmi?
+            # Sessiya faylini yuklab, darhol ulanib ko'ramiz
             is_notify = (phone == NOTIFY_PHONE)
-
-            await event.respond(
-                f"✅ **Sessiya saqlandi!**\n\n"
-                f"📱 `{phone}`\n"
-                f"{'🔔 Notify akkaunt' if is_notify else '🎯 Quiz akkaunt'}\n\n"
-                f"{'Endi /notify_ulash ni bosing — kod so\'ralmaydi!' if is_notify else 'Botni qayta ishga tushiring yoki admin panel → ➕ Akkaunt qo\'shish.'}"
-            )
+            try:
+                client = TelegramClient(session_path, API_ID, API_HASH)
+                await client.connect()
+                if await client.is_user_authorized():
+                    me = await client.get_me()
+                    all_clients.append(client)
+                    account_phones[id(client)] = phone
+                    if is_notify:
+                        notify_client_holder["client"] = client
+                        setup_notify_listener(client)
+                        await event.respond(
+                            f"✅ **Notify akkaunt ulandi!**\n\n"
+                            f"📱 `{phone}` (@{me.username or me.first_name})\n"
+                            f"🔔 @humocardbot endi tinglanadi!",
+                            buttons=[[Button.text("🔙 Admin panel")]]
+                        )
+                    else:
+                        # Quiz pool ga qo'shamiz
+                        already = any(account_phones.get(id(c)) == phone for c in account_pool)
+                        if not already:
+                            account_pool.append(client)
+                            account_busy[id(client)] = False
+                        await event.respond(
+                            f"✅ **Akkaunt ulandi!**\n\n"
+                            f"📱 `{phone}` (@{me.username or me.first_name})\n"
+                            f"🎯 Quiz pool ga qo'shildi!\n"
+                            f"Jami akkaunt: {len(account_pool)} ta",
+                            buttons=[[Button.text("🔙 Admin panel")]]
+                        )
+                    log.info(f"Sessiya yuklandi va ulandi: {phone}")
+                else:
+                    await client.disconnect()
+                    await event.respond(
+                        f"💾 Sessiya saqlandi, lekin avtorizatsiya eski.\n"
+                        f"📱 `{phone}`\n\n"
+                        f"{'Endi /notify_ulash ni bosing' if is_notify else '➕ Akkaunt qo\'shish orqali qayta ulang'}",
+                        buttons=[[Button.text("🔙 Admin panel")]]
+                    )
+            except Exception as conn_err:
+                log.error(f"Sessiya ulanish xato: {conn_err}")
+                await event.respond(
+                    f"💾 Sessiya saqlandi!\n📱 `{phone}`\n\n"
+                    f"Ulanishda xato: {conn_err}\n"
+                    f"{'Qayta /notify_ulash bosing' if is_notify else 'Admin panel → ➕ Akkaunt qo\'shish'}",
+                    buttons=[[Button.text("🔙 Admin panel")]]
+                )
             log.info(f"Sessiya yuklandi: {phone}, {len(data)} bayt")
 
         except Exception as e:
