@@ -2371,6 +2371,96 @@ async def main():
         log.warning(f"⚠️ Notify akkaunt topilmadi: {NOTIFY_PHONE} — /notify_ulash buyrug'ini ishlating")
 
     # ============================================================
+    #  /session_yuklash — sessiya faylini bot orqali yuklash
+    # ============================================================
+    @bot_client.on(events.NewMessage(pattern="/session_yuklash"))
+    async def cmd_session_upload(event):
+        if not is_admin(event.sender_id): return
+        admin_states[event.sender_id] = {"step": "wait_session_file"}
+        await event.respond(
+            "📤 **Sessiya fayli yuklash**\n\n"
+            "`.session` faylini yuboring\n"
+            "_(Misol: userbot_998934897111.session)_\n\n"
+            "Fayl DB ga saqlanadi va bot uni ishlatadi.\n\n"
+            "/cancel — bekor"
+        )
+
+    @bot_client.on(events.NewMessage(
+        func=lambda e: e.file and
+        admin_states.get(e.sender_id, {}).get("step") == "wait_session_file"
+        and e.sender_id in ADMIN_IDS
+    ))
+    async def cmd_session_receive(event):
+        uid = event.sender_id
+        if not is_admin(uid): return
+
+        fname = getattr(event.file, 'name', '') or ''
+        if not fname.lower().endswith('.session'):
+            await event.respond("❌ Faqat `.session` fayl yuboring!")
+            return
+
+        try:
+            import io, base64
+            buf = io.BytesIO()
+            await event.download_media(file=buf)
+            buf.seek(0)
+            data = buf.read()
+
+            if len(data) < 10:
+                await event.respond("❌ Fayl bo'sh!")
+                return
+
+            # Telefon raqamini fayl nomidan ajratish
+            # userbot_998934897111.session → +998934897111
+            name = fname.replace('.session', '')
+            digits = name.replace('userbot_', '').strip()
+            if digits.startswith('998') and len(digits) >= 12:
+                phone = '+' + digits
+            elif digits.startswith('+'):
+                phone = digits
+            else:
+                phone = '+' + digits
+
+            # Sessiya faylini diskka yozish
+            sess_dir = _os.path.dirname(DB_FILE)
+            if sess_dir:
+                _os.makedirs(sess_dir, exist_ok=True)
+            session_path = _os.path.join(sess_dir, f"userbot_{phone.replace('+','').replace(' ','')}")
+            with open(session_path + ".session", "wb") as f:
+                f.write(data)
+
+            # DB ga ham saqlash
+            encoded = base64.b64encode(data).decode()
+            con = sqlite3.connect(DB_FILE)
+            con.execute("""
+                INSERT INTO sessions (phone, session_data, updated_at)
+                VALUES (?, ?, datetime('now','localtime'))
+                ON CONFLICT(phone) DO UPDATE SET
+                    session_data = excluded.session_data,
+                    updated_at   = excluded.updated_at
+            """, (phone, encoded))
+            con.commit()
+            con.close()
+
+            admin_states.pop(uid, None)
+
+            # Notify akkauntmi yoki quiz akkauntmi?
+            is_notify = (phone == NOTIFY_PHONE)
+
+            await event.respond(
+                f"✅ **Sessiya saqlandi!**\n\n"
+                f"📱 `{phone}`\n"
+                f"{'🔔 Notify akkaunt' if is_notify else '🎯 Quiz akkaunt'}\n\n"
+                f"{'Endi /notify_ulash ni bosing — kod so\'ralmaydi!' if is_notify else 'Botni qayta ishga tushiring yoki admin panel → ➕ Akkaunt qo\'shish.'}"
+            )
+            log.info(f"Sessiya yuklandi: {phone}, {len(data)} bayt")
+
+        except Exception as e:
+            log.error(f"session_receive xato: {e}")
+            admin_states.pop(uid, None)
+            await event.respond(f"❌ Xato: {e}")
+
+    # ============================================================
     #  /notify_ulash — bot orqali notify akkauntni ulash
     # ============================================================
     @bot_client.on(events.NewMessage(pattern="/notify_ulash"))
