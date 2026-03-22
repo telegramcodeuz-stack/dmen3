@@ -2322,12 +2322,13 @@ async def main():
         if not NOTIFY_PHONE:
             await event.respond("❌ NOTIFY_PHONE environment variable o'rnatilmagan!")
             return
-        admin_states[event.sender_id] = {"step": "wait_notify_code", "phone": NOTIFY_PHONE}
+
         await event.respond(
             f"📱 **Notify akkaunt ulash**\n\n"
             f"Raqam: `{NOTIFY_PHONE}`\n\n"
-            f"📲 Telegram kodi yuborilmoqda..."
+            f"📲 Kod yuborilmoqda..."
         )
+
         try:
             sess_dir = _os.path.dirname(DB_FILE)
             session  = _os.path.join(sess_dir, f"userbot_{NOTIFY_PHONE.replace('+','').replace(' ','')}")
@@ -2335,15 +2336,16 @@ async def main():
             await client.connect()
             result = await client.send_code_request(NOTIFY_PHONE)
             admin_states[event.sender_id] = {
-                "step": "wait_notify_code",
-                "phone": NOTIFY_PHONE,
+                "step":   "wait_notify_code",
+                "phone":  NOTIFY_PHONE,
                 "client": client,
-                "hash": result.phone_code_hash,
+                "hash":   result.phone_code_hash,
             }
             await event.respond(
                 f"✅ Kod yuborildi!\n\n"
-                f"`{NOTIFY_PHONE}` ga kelgan kodni yuboring:\n"
-                f"_(Misol: 12345)_\n\n/cancel — bekor"
+                f"`{NOTIFY_PHONE}` ga kelgan **SMS/Telegram kodni** yuboring\n"
+                f"_(Misol: 1 2 3 4 5 — bo'shliq bilan yoki birga)_\n\n"
+                f"/cancel — bekor"
             )
         except Exception as e:
             await event.respond(f"❌ Xato: {e}")
