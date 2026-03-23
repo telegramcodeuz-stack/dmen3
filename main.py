@@ -980,6 +980,18 @@ async def make_quiz(userbot: TelegramClient, req: QuizRequest) -> Optional[str]:
 
 
 # ============================================================
+#  ADMIN NOTIFY — global funksiya
+# ============================================================
+async def notify_admin(text: str):
+    """Barcha adminlarga xabar yuborish"""
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot_client.send_message(admin_id, text)
+        except Exception as e:
+            log.error(f"Admin notify xato: {e}")
+
+
+# ============================================================
 #  NAVBAT ISHLOVCHISI
 # ============================================================
 async def queue_worker():
@@ -1875,14 +1887,6 @@ async def main():
     # ============================================================
     # Faol foydalanuvchilar: {user_id: {name, step, last_action, time}}
     active_users: dict = {}
-
-    async def notify_admin(text: str):
-        """Barcha adminlarga xabar yuborish"""
-        for admin_id in ADMIN_IDS:
-            try:
-                await bot_client.send_message(admin_id, text)
-            except Exception as e:
-                log.error(f"Admin notify xato: {e}")
 
     def track_user(uid: int, name: str, step: str, action: str):
         """Faol foydalanuvchini kuzatish"""
