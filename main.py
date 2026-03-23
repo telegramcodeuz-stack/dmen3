@@ -997,12 +997,15 @@ async def notify_admin(text: str):
 async def queue_worker():
     log.info("Navbat ishlovchisi ishga tushdi")
     while True:
-        if request_queue and account_pool:
-            async with queue_lock:
-                req = request_queue.popleft() if request_queue else None
-            if req:
-                userbot = await get_free()
-                asyncio.create_task(run_request(userbot, req))
+        try:
+            if request_queue and account_pool:
+                async with queue_lock:
+                    if request_queue:  # Lock ichida qayta tekshiramiz
+                        req = request_queue.popleft()
+                        userbot = await get_free()
+                        asyncio.create_task(run_request(userbot, req))
+        except Exception as e:
+            log.error(f"queue_worker xato: {e}")
         await asyncio.sleep(1)
 
 async def run_request(userbot, req: QuizRequest):
