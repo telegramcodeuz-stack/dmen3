@@ -107,10 +107,31 @@ def release_card(card_num: str):
     card_assignments[card_num] = None
 
 
+def get_db():
+    """DB ga ulanish — har safar referrals jadvalini tekshiradi"""
+    con = get_db()
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS referrals (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            inviter_id  INTEGER NOT NULL,
+            invited_id  INTEGER NOT NULL,
+            bonus       INTEGER DEFAULT 500,
+            created_at  TEXT DEFAULT ''
+        )
+    """)
+    con.execute("ALTER TABLE users ADD COLUMN invited_by INTEGER DEFAULT NULL" if True else "")
+    try:
+        con.execute("ALTER TABLE users ADD COLUMN invited_by INTEGER DEFAULT NULL")
+    except Exception:
+        pass
+    con.commit()
+    return con
+
+
 def db_save_user(user_id: int, first_name: str = "",
                  last_name: str = "", username: str = ""):
     """Foydalanuvchini saqlash yoki yangilash"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     con.execute("""
         INSERT INTO users (user_id, first_name, last_name, username, created_at, last_seen)
         VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
@@ -126,7 +147,7 @@ def db_save_user(user_id: int, first_name: str = "",
 
 def db_count_users() -> int:
     """Jami foydalanuvchilar soni"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     n = con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     con.close()
     return n
@@ -134,7 +155,7 @@ def db_count_users() -> int:
 
 def db_get_users(limit: int = 20, offset: int = 0) -> list:
     """Foydalanuvchilar ro'yxati"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     rows = con.execute("""
         SELECT user_id, first_name, last_name, username, created_at, last_seen
         FROM users ORDER BY last_seen DESC LIMIT ? OFFSET ?
@@ -145,7 +166,7 @@ def db_get_users(limit: int = 20, offset: int = 0) -> list:
 
 def db_get_user(user_id: int):
     """Bitta foydalanuvchi"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     row = con.execute(
         "SELECT * FROM users WHERE user_id=?", (user_id,)
     ).fetchone()
@@ -154,7 +175,7 @@ def db_get_user(user_id: int):
 
 
 def db_get_balance(user_id: int) -> int:
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     row = con.execute(
         "SELECT balance FROM users WHERE user_id=?", (user_id,)
     ).fetchone()
@@ -164,7 +185,7 @@ def db_get_balance(user_id: int) -> int:
 
 
 def db_add_balance(user_id: int, amount: int, reason: str = ""):
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     con.execute(
         "UPDATE users SET balance = balance + ? WHERE user_id=?",
         (amount, user_id)
@@ -179,7 +200,7 @@ def db_add_balance(user_id: int, amount: int, reason: str = ""):
 
 
 def db_deduct_balance(user_id: int, amount: int, reason: str = "") -> bool:
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     row = con.execute(
         "SELECT balance FROM users WHERE user_id=?", (user_id,)
     ).fetchone()
@@ -201,7 +222,7 @@ def db_deduct_balance(user_id: int, amount: int, reason: str = "") -> bool:
 
 
 def db_create_payment(user_id: int, card_num: str, amount: int) -> int:
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     cur = con.cursor()
     cur.execute(
         """INSERT INTO payments
@@ -219,7 +240,7 @@ def db_create_payment(user_id: int, card_num: str, amount: int) -> int:
 
 def db_get_pending(user_id: int) -> Optional[tuple]:
     """Foydalanuvchining kutilayotgan to'lovi (id, card, amount, expires)"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     row = con.execute(
         """SELECT id, card_num, amount, expires_at FROM payments
            WHERE user_id=? AND status='pending'
@@ -233,7 +254,7 @@ def db_get_pending(user_id: int) -> Optional[tuple]:
 
 def db_confirm_payment(pay_id: int) -> Optional[tuple]:
     """To'lovni tasdiqlash → (user_id, amount, card_num)"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     row = con.execute(
         "SELECT user_id, amount, card_num FROM payments WHERE id=? AND status='pending'",
         (pay_id,)
@@ -251,7 +272,7 @@ def db_confirm_payment(pay_id: int) -> Optional[tuple]:
 
 def db_expire_old():
     """Muddati o'tgan to'lovlarni bekor qilish"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     expired = con.execute(
         """SELECT id, card_num FROM payments WHERE status='pending'
            AND expires_at < datetime('now')"""
@@ -267,7 +288,7 @@ def db_expire_old():
 
 
 def db_payment_stats() -> dict:
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     total = con.execute(
         "SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='confirmed'"
     ).fetchone()[0]
@@ -284,7 +305,7 @@ def db_payment_stats() -> dict:
 
 def db_init():
     """Barcha jadvallarni yaratish"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     cur = con.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS users (
@@ -373,7 +394,7 @@ def db_save_session(phone: str, session_path: str):
         return
     with open(session_path + ".session", "rb") as f:
         data = base64.b64encode(f.read()).decode()
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     con.execute("""
         INSERT INTO sessions (phone, session_data, updated_at)
         VALUES (?, ?, datetime('now'))
@@ -389,7 +410,7 @@ def db_save_session(phone: str, session_path: str):
 def db_load_session(phone: str, session_path: str) -> bool:
     """DB dan sessiya faylini tiklash"""
     import base64
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     row = con.execute(
         "SELECT session_data FROM sessions WHERE phone=?", (phone,)
     ).fetchone()
@@ -414,7 +435,7 @@ def db_save_quiz(user_id: int, fan_name: str, q_count: int,
                  variant_num: int, url: str, time_choice: str,
                  order_type: str, source: str = "ai") -> int:
     """Quiz ma'lumotlarini saqlash, id qaytaradi"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     cur = con.cursor()
     cur.execute("""
         INSERT INTO quizzes
@@ -429,7 +450,7 @@ def db_save_quiz(user_id: int, fan_name: str, q_count: int,
 
 def db_get_user_quizzes(user_id: int, limit: int = 20) -> list:
     """Foydalanuvchining quizlari"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     rows = con.execute("""
         SELECT id, fan_name, q_count, variant_num, url, source, created_at
         FROM quizzes
@@ -442,7 +463,7 @@ def db_get_user_quizzes(user_id: int, limit: int = 20) -> list:
 
 
 def db_count_user_quizzes(user_id: int) -> int:
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     n = con.execute(
         "SELECT COUNT(*) FROM quizzes WHERE user_id=?", (user_id,)
     ).fetchone()[0]
@@ -457,14 +478,14 @@ REFERRAL_BONUS = 500  # har ikki tomonga beriladigan so'm
 
 def db_is_new_user(user_id: int) -> bool:
     """Foydalanuvchi avval kelganmi?"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     row = con.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,)).fetchone()
     con.close()
     return row is None
 
 def db_save_referral(inviter_id: int, invited_id: int):
     """Referal munosabatini saqlash"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     con.execute("""
         INSERT OR IGNORE INTO referrals (inviter_id, invited_id, bonus, created_at)
         VALUES (?, ?, ?, datetime('now'))
@@ -478,7 +499,7 @@ def db_save_referral(inviter_id: int, invited_id: int):
 
 def db_get_referral_count(user_id: int) -> int:
     """Foydalanuvchi nechta odam taklif qilgani"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     n = con.execute(
         "SELECT COUNT(*) FROM referrals WHERE inviter_id=?", (user_id,)
     ).fetchone()[0]
@@ -487,7 +508,7 @@ def db_get_referral_count(user_id: int) -> int:
 
 def db_get_referral_list(user_id: int, limit: int = 20) -> list:
     """Taklif qilinganlar ro'yxati"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     rows = con.execute("""
         SELECT r.invited_id, u.first_name, u.last_name, u.username, r.created_at
         FROM referrals r
@@ -501,7 +522,7 @@ def db_get_referral_list(user_id: int, limit: int = 20) -> list:
 
 def db_already_referred(inviter_id: int, invited_id: int) -> bool:
     """Bu juft allaqachon referalda bormi?"""
-    con = sqlite3.connect(DB_FILE)
+    con = get_db()
     row = con.execute(
         "SELECT id FROM referrals WHERE inviter_id=? AND invited_id=?",
         (inviter_id, invited_id)
@@ -855,13 +876,19 @@ async def make_quiz(userbot: TelegramClient, req: QuizRequest) -> Optional[str]:
         qbot = await userbot.get_entity("@QuizBot")
         title = f"{req.fan_name} — Variant {req.variant_num}"
 
-        await userbot.send_message(qbot, "/newquiz"); await asyncio.sleep(3)
+        # Oldingi sessiyani tugatish
+        try:
+            await userbot.send_message(qbot, "/cancel")
+            await asyncio.sleep(2)
+        except Exception:
+            pass
+
+        await userbot.send_message(qbot, "/newquiz"); await asyncio.sleep(4)
         await userbot.send_message(qbot, title);     await asyncio.sleep(3)
         await userbot.send_message(qbot, "/skip");   await asyncio.sleep(3)
 
         for i, q in enumerate(req.questions):
             try:
-                # Reklama — savoldan OLDIN matn yuboriladi
                 if AD_EVERY > 0 and i > 0 and i % AD_EVERY == 0:
                     await userbot.send_message(qbot, AD_TEXT)
                     await asyncio.sleep(2)
@@ -873,11 +900,13 @@ async def make_quiz(userbot: TelegramClient, req: QuizRequest) -> Optional[str]:
                 log.error(f"  [{i+1}] xato: {e}")
                 await asyncio.sleep(3)
 
-        await userbot.send_message(qbot, "/done"); await asyncio.sleep(5)
+        await userbot.send_message(qbot, "/done")
+        await asyncio.sleep(6)
 
-        # Vaqt
-        msg = (await userbot.get_messages(qbot, limit=1))[0]
-        if msg.reply_markup:
+        # Vaqt — eng yangi tugmali xabarni topamiz
+        msgs = await userbot.get_messages(qbot, limit=5)
+        msg = next((m for m in msgs if m.reply_markup), None)
+        if msg:
             tmap = {"15": "15", "30": "30", "60": "60", "0": "No limit"}
             target = tmap.get(req.time_choice, "30")
             clicked = False
@@ -888,11 +917,12 @@ async def make_quiz(userbot: TelegramClient, req: QuizRequest) -> Optional[str]:
                 if clicked: break
             if not clicked:
                 await msg.click(text=msg.reply_markup.rows[0].buttons[0].text)
-        await asyncio.sleep(3)
+        await asyncio.sleep(4)
 
-        # Tartib
-        msg = (await userbot.get_messages(qbot, limit=1))[0]
-        if msg.reply_markup:
+        # Tartib — eng yangi tugmali xabarni topamiz
+        msgs = await userbot.get_messages(qbot, limit=5)
+        msg = next((m for m in msgs if m.reply_markup), None)
+        if msg:
             clicked = False
             for row in msg.reply_markup.rows:
                 for btn in row.buttons:
@@ -901,47 +931,52 @@ async def make_quiz(userbot: TelegramClient, req: QuizRequest) -> Optional[str]:
                 if clicked: break
             if not clicked:
                 await msg.click(text=msg.reply_markup.rows[0].buttons[0].text)
-        await asyncio.sleep(4)
+        await asyncio.sleep(6)
 
-        # Havola — QuizBot dan olish (bir necha urinish)
+        # Havola olish — 5 urinish
         raw_url = None
-        for attempt in range(3):
-            await asyncio.sleep(3)
-            msgs = await userbot.get_messages(qbot, limit=8)
+        for attempt in range(5):
+            await asyncio.sleep(4)
+            msgs = await userbot.get_messages(qbot, limit=10)
             log.info(f"Havola qidirilmoqda (urinish {attempt+1}), {len(msgs)} ta xabar")
+
             for m in msgs:
+                # Tugma ichidagi URL — eng ishonchli
+                if m.reply_markup:
+                    for row in m.reply_markup.rows:
+                        for btn in row.buttons:
+                            if hasattr(btn, "url") and btn.url and "t.me" in btn.url:
+                                raw_url = btn.url; break
+                        if raw_url: break
+                if raw_url: break
+
+                # Matn ichidagi URL
                 if m.text:
-                    # startgroup yoki start parametrli URL
-                    urls = re.findall(r'https?://t\.me/[^\s\)\"\']+', m.text)
+                    urls = re.findall(r"https?://t\.me/\S+", m.text)
                     for url in urls:
-                        if 'start' in url or 'quiz' in url.lower():
+                        if "start" in url or "startgroup" in url:
                             raw_url = url; break
                     if not raw_url and urls:
                         raw_url = urls[0]
                 if raw_url: break
-                if m.reply_markup:
-                    for row in m.reply_markup.rows:
-                        for btn in row.buttons:
-                            if hasattr(btn, 'url') and btn.url:
-                                raw_url = btn.url; break
-                        if raw_url: break
-                if raw_url: break
+
+                # Entity ichidagi URL
                 if m.entities:
                     for ent in m.entities:
-                        if hasattr(ent, 'url') and ent.url:
+                        if hasattr(ent, "url") and ent.url and "t.me" in ent.url:
                             raw_url = ent.url; break
                 if raw_url: break
+
             if raw_url:
                 log.info(f"Havola topildi: {raw_url}")
                 break
             log.warning(f"Havola topilmadi, {attempt+1}-urinish")
 
         if not raw_url:
-            log.error("Havola 3 urinishdan keyin ham topilmadi")
+            log.error("Havola 5 urinishdan keyin ham topilmadi")
             return None
 
-        # Domain QuizBot ga, startgroup → start
-        fixed = re.sub(r'(https?://t\.me/)([^?/]+)',
+        fixed = re.sub(r"(https?://t\.me/)([^?/]+)",
                        lambda m: m.group(1) + "QuizBot", raw_url, count=1)
         fixed = fixed.replace("?startgroup=", "?start=")
         return fixed
@@ -949,6 +984,7 @@ async def make_quiz(userbot: TelegramClient, req: QuizRequest) -> Optional[str]:
     except Exception as e:
         log.error(f"make_quiz xato: {e}")
         return None
+
 
 # ============================================================
 #  NAVBAT ISHLOVCHISI
@@ -2221,7 +2257,7 @@ async def main():
         elif text == "💳 To'lovlar":
             stats = db_payment_stats()
             # Oxirgi 10 to'lov
-            con = sqlite3.connect(DB_FILE)
+            con = get_db()
             last_pays = con.execute(
                 """SELECT p.id, p.user_id, p.amount, p.card_num, p.status, p.paid_at
                    FROM payments p ORDER BY p.id DESC LIMIT 10"""
@@ -2637,7 +2673,7 @@ async def main():
                 log.warning(f"Karta aniqlanmadi: {text[:80]}")
                 return
             log.info(f"To'lov aniqlandi: karta={card}, summa={amount}")
-            con = sqlite3.connect(DB_FILE)
+            con = get_db()
             row = con.execute(
                 """SELECT id, user_id, amount FROM payments
                    WHERE card_num=? AND status='pending'
@@ -2811,7 +2847,7 @@ async def main():
 
             # DB ga ham saqlash
             encoded = base64.b64encode(data).decode()
-            con = sqlite3.connect(DB_FILE)
+            con = get_db()
             con.execute("""
                 INSERT INTO sessions (phone, session_data, updated_at)
                 VALUES (?, ?, datetime('now'))
