@@ -344,12 +344,21 @@ def db_init():
             created_at  TEXT DEFAULT ''
         );
     """)
-    for col_sql in [
+    # Eski DB lar uchun migration
+    migrations = [
         "ALTER TABLE users ADD COLUMN balance INTEGER DEFAULT 0",
         "ALTER TABLE users ADD COLUMN invited_by INTEGER DEFAULT NULL",
-    ]:
+        """CREATE TABLE IF NOT EXISTS referrals (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            inviter_id  INTEGER NOT NULL,
+            invited_id  INTEGER NOT NULL,
+            bonus       INTEGER DEFAULT 500,
+            created_at  TEXT DEFAULT ''
+        )""",
+    ]
+    for sql in migrations:
         try:
-            cur.execute(col_sql)
+            cur.execute(sql)
             con.commit()
         except Exception:
             pass
