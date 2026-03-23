@@ -108,24 +108,7 @@ def release_card(card_num: str):
 
 
 def get_db():
-    """DB ga ulanish — har safar referrals jadvalini tekshiradi"""
-    con = get_db()
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS referrals (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            inviter_id  INTEGER NOT NULL,
-            invited_id  INTEGER NOT NULL,
-            bonus       INTEGER DEFAULT 500,
-            created_at  TEXT DEFAULT ''
-        )
-    """)
-    con.execute("ALTER TABLE users ADD COLUMN invited_by INTEGER DEFAULT NULL" if True else "")
-    try:
-        con.execute("ALTER TABLE users ADD COLUMN invited_by INTEGER DEFAULT NULL")
-    except Exception:
-        pass
-    con.commit()
-    return con
+    return sqlite3.connect(DB_FILE)
 
 
 def db_save_user(user_id: int, first_name: str = "",
@@ -879,9 +862,17 @@ async def make_quiz(userbot: TelegramClient, req: QuizRequest) -> Optional[str]:
         # Oldingi sessiyani tugatish
         try:
             await userbot.send_message(qbot, "/cancel")
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
         except Exception:
             pass
+
+        # Boshlash oldidan oxirgi xabar ID ni eslab qolamiz
+        try:
+            start_msgs = await userbot.get_messages(qbot, limit=1)
+            start_msg_id = start_msgs[0].id if start_msgs else 0
+        except Exception:
+            start_msg_id = 0
+        log.info(f"Start msg ID: {start_msg_id}")
 
         await userbot.send_message(qbot, "/newquiz"); await asyncio.sleep(4)
         await userbot.send_message(qbot, title);     await asyncio.sleep(3)
@@ -933,14 +924,16 @@ async def make_quiz(userbot: TelegramClient, req: QuizRequest) -> Optional[str]:
                 await msg.click(text=msg.reply_markup.rows[0].buttons[0].text)
         await asyncio.sleep(6)
 
-        # Havola olish — 5 urinish
+        # Havola olish — faqat yangi xabarlardan (start_msg_id dan keyin)
         raw_url = None
         for attempt in range(5):
             await asyncio.sleep(4)
             msgs = await userbot.get_messages(qbot, limit=10)
-            log.info(f"Havola qidirilmoqda (urinish {attempt+1}), {len(msgs)} ta xabar")
+            # Faqat start_msg_id dan keyin kelgan xabarlar
+            new_msgs = [m for m in msgs if m.id > start_msg_id]
+            log.info(f"Havola qidirilmoqda (urinish {attempt+1}), {len(new_msgs)} ta yangi xabar")
 
-            for m in msgs:
+            for m in new_msgs:
                 # Tugma ichidagi URL — eng ishonchli
                 if m.reply_markup:
                     for row in m.reply_markup.rows:
