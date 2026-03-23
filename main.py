@@ -293,6 +293,7 @@ def db_init():
             last_name   TEXT DEFAULT '',
             username    TEXT DEFAULT '',
             balance     INTEGER DEFAULT 0,
+            invited_by  INTEGER DEFAULT NULL,
             created_at  TEXT DEFAULT '',
             last_seen   TEXT DEFAULT ''
         );
@@ -334,9 +335,18 @@ def db_init():
             session_data TEXT NOT NULL,
             updated_at  TEXT DEFAULT ''
         );
+
+        CREATE TABLE IF NOT EXISTS referrals (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            inviter_id  INTEGER NOT NULL,
+            invited_id  INTEGER NOT NULL,
+            bonus       INTEGER DEFAULT 500,
+            created_at  TEXT DEFAULT ''
+        );
     """)
     for col_sql in [
         "ALTER TABLE users ADD COLUMN balance INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN invited_by INTEGER DEFAULT NULL",
     ]:
         try:
             cur.execute(col_sql)
@@ -429,6 +439,66 @@ def db_count_user_quizzes(user_id: int) -> int:
     ).fetchone()[0]
     con.close()
     return n
+
+
+# ============================================================
+#  REFERAL TIZIMI
+# ============================================================
+REFERRAL_BONUS = 500  # har ikki tomonga beriladigan so'm
+
+def db_is_new_user(user_id: int) -> bool:
+    """Foydalanuvchi avval kelganmi?"""
+    con = sqlite3.connect(DB_FILE)
+    row = con.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,)).fetchone()
+    con.close()
+    return row is None
+
+def db_save_referral(inviter_id: int, invited_id: int):
+    """Referal munosabatini saqlash"""
+    con = sqlite3.connect(DB_FILE)
+    con.execute("""
+        INSERT OR IGNORE INTO referrals (inviter_id, invited_id, bonus, created_at)
+        VALUES (?, ?, ?, datetime('now'))
+    """, (inviter_id, invited_id, REFERRAL_BONUS))
+    con.execute(
+        "UPDATE users SET invited_by=? WHERE user_id=?",
+        (inviter_id, invited_id)
+    )
+    con.commit()
+    con.close()
+
+def db_get_referral_count(user_id: int) -> int:
+    """Foydalanuvchi nechta odam taklif qilgani"""
+    con = sqlite3.connect(DB_FILE)
+    n = con.execute(
+        "SELECT COUNT(*) FROM referrals WHERE inviter_id=?", (user_id,)
+    ).fetchone()[0]
+    con.close()
+    return n
+
+def db_get_referral_list(user_id: int, limit: int = 20) -> list:
+    """Taklif qilinganlar ro'yxati"""
+    con = sqlite3.connect(DB_FILE)
+    rows = con.execute("""
+        SELECT r.invited_id, u.first_name, u.last_name, u.username, r.created_at
+        FROM referrals r
+        LEFT JOIN users u ON u.user_id = r.invited_id
+        WHERE r.inviter_id = ?
+        ORDER BY r.id DESC
+        LIMIT ?
+    """, (user_id, limit)).fetchall()
+    con.close()
+    return rows
+
+def db_already_referred(inviter_id: int, invited_id: int) -> bool:
+    """Bu juft allaqachon referalda bormi?"""
+    con = sqlite3.connect(DB_FILE)
+    row = con.execute(
+        "SELECT id FROM referrals WHERE inviter_id=? AND invited_id=?",
+        (inviter_id, invited_id)
+    ).fetchone()
+    con.close()
+    return row is not None
 
 
 # ============================================================
@@ -912,6 +982,15 @@ async def run_request(userbot, req: QuizRequest):
                 order_type = req.order_choice,
                 source     = getattr(req, 'source', 'file'),
             )
+            # Admin ga xabar
+            src = "🤖 AI" if getattr(req, 'source', 'file') == 'ai' else "📂 Fayl"
+            await notify_admin(
+                f"✅ **Quiz yaratildi**\n\n"
+                f"👤 user: `{req.user_id}`\n"
+                f"{src} | 📚 {req.fan_name} V{req.variant_num}\n"
+                f"❓ {len(req.questions)} savol | 🕐 {format_wait(elapsed)}\n"
+                f"🔗 {url}"
+            )
             await bot_client.send_message(
                 req.chat_id,
                 f"✅ **Quiz tayyor!**\n\n"
@@ -1012,7 +1091,8 @@ async def main():
             [Button.text("📋 Mening quizlarim",      resize=True)],
             [Button.text("💳 To'lov qilish",         resize=True),
              Button.text("💰 Balansni ko'rish",      resize=True)],
-            [Button.text("❓ Yordam",                resize=True)],
+            [Button.text("🎁 Referal",               resize=True),
+             Button.text("❓ Yordam",                resize=True)],
         ]
         if adm: btns.append([Button.text("🔧 Admin panel", resize=True)])
         return btns
@@ -1067,22 +1147,61 @@ async def main():
     @bot_client.on(events.NewMessage(pattern="/start"))
     async def cmd_start(event):
         uid = event.sender_id
+        is_new = db_is_new_user(uid)
         user_states[uid] = UserState()
 
-        # Foydalanuvchini DB ga saqlash
         sender = await event.get_sender()
-        db_save_user(
-            user_id    = uid,
-            first_name = getattr(sender, 'first_name', '') or '',
-            last_name  = getattr(sender, 'last_name',  '') or '',
-            username   = getattr(sender, 'username',   '') or '',
-        )
+        first  = getattr(sender, 'first_name', '') or ''
+        last   = getattr(sender, 'last_name',  '') or ''
+        uname  = getattr(sender, 'username',   '') or ''
+        full_name = f"{first} {last}".strip() or uname or str(uid)
+        db_save_user(user_id=uid, first_name=first, last_name=last, username=uname)
+        track_user(uid, full_name, "idle", "/start")
+
+        # Referal tekshirish — /start ref_123456789
+        ref_bonus_msg = ""
+        raw = event.raw_text.strip()
+        ref_match = re.match(r'^/start\s+ref_(\d+)$', raw)
+        if ref_match and is_new:
+            inviter_id = int(ref_match.group(1))
+            if inviter_id != uid and not db_already_referred(inviter_id, uid):
+                db_save_referral(inviter_id, uid)
+                db_add_balance(uid, REFERRAL_BONUS, f"Referal bonusi — {inviter_id} taklif qildi")
+                db_add_balance(inviter_id, REFERRAL_BONUS, f"Referal bonusi — {uid} qo'shildi")
+                ref_count = db_get_referral_count(inviter_id)
+                ref_bonus_msg = f"\n\n🎁 **Referal bonus: +{REFERRAL_BONUS:,} so'm** balansga qo'shildi!"
+                try:
+                    await bot_client.send_message(
+                        inviter_id,
+                        f"🎉 **Yangi referal!**\n\n"
+                        f"👤 **{full_name}** sizning havolangiz orqali qo'shildi!\n"
+                        f"💰 +{REFERRAL_BONUS:,} so'm balansga qo'shildi\n"
+                        f"👥 Jami referallar: **{ref_count} ta**"
+                    )
+                except Exception:
+                    pass
+                await notify_admin(
+                    f"🎁 **Referal**\n\n"
+                    f"👤 {full_name} (`{uid}`) → `{inviter_id}` havolasidan keldi\n"
+                    f"💰 Ikkalasiga +{REFERRAL_BONUS:,} so'm"
+                )
+
+        # Yangi foydalanuvchi bo'lsa admin ga xabar
+        if is_new:
+            total = db_count_users()
+            uname_str = f"@{uname}" if uname else f"`{uid}`"
+            await notify_admin(
+                f"👤 **Yangi foydalanuvchi**\n\n"
+                f"Ism: **{full_name}**\n"
+                f"ID: `{uid}` | {uname_str}\n"
+                f"Jami: {total} ta"
+            )
 
         await event.respond(
-            "👋 **Salom! AI Quiz Bot**\n\n"
-            "🤖 AI yordamida istalgan fandan test tuzing!\n"
-            "📁 Fayl yuklang yoki matn kiriting\n\n"
-            "Boshlash uchun tugmani bosing 👇",
+            f"👋 **Salom! AI Quiz Bot**\n\n"
+            f"🤖 AI yordamida istalgan fandan test tuzing!\n"
+            f"📁 Fayl yuklang yoki matn kiriting{ref_bonus_msg}\n\n"
+            f"Boshlash uchun tugmani bosing 👇",
             buttons=main_menu(is_admin(uid))
         )
 
@@ -1252,12 +1371,15 @@ async def main():
 
         # Har xabarda last_seen yangilash
         sender = await event.get_sender()
-        db_save_user(
-            user_id    = uid,
-            first_name = getattr(sender, 'first_name', '') or '',
-            last_name  = getattr(sender, 'last_name',  '') or '',
-            username   = getattr(sender, 'username',   '') or '',
-        )
+        first  = getattr(sender, 'first_name', '') or ''
+        last   = getattr(sender, 'last_name',  '') or ''
+        uname  = getattr(sender, 'username',   '') or ''
+        full_name = f"{first} {last}".strip() or uname or str(uid)
+        db_save_user(user_id=uid, first_name=first, last_name=last, username=uname)
+
+        # Faol foydalanuvchini kuzatish
+        state_now = user_states.get(uid, UserState())
+        track_user(uid, full_name, state_now.step, text[:50])
 
         # Admin oraliq holat
         if astate.get("step") == "wait_phone":
@@ -1268,6 +1390,10 @@ async def main():
             await _admin_enter_pass(event, uid, text); return
         if astate.get("step") == "wait_remove":
             await _admin_do_remove(event, uid, text); return
+        if astate.get("step") == "wait_bonus_user_id":
+            await _admin_bonus_user_id(event, uid, text); return
+        if astate.get("step") == "wait_bonus_amount":
+            await _admin_bonus_amount(event, uid, text); return
 
         state = user_states.get(uid, UserState())
 
@@ -1302,6 +1428,39 @@ async def main():
 
             await event.respond(
                 "\n\n".join(lines),
+                buttons=[[Button.text("🔙 Bosh menyu")]],
+                link_preview=False
+            )
+            return
+
+        if text == "🎁 Referal":
+            ref_count = db_get_referral_count(uid)
+            ref_list  = db_get_referral_list(uid, limit=10)
+            me = await event.get_sender()
+            bot_me = await bot_client.get_me()
+            bot_username = bot_me.username
+            ref_link = f"https://t.me/{bot_username}?start=ref_{uid}"
+            bal = db_get_balance(uid)
+
+            lines = [
+                f"🎁 **Referal dasturi**\n",
+                f"👥 Siz taklif qilganlar: **{ref_count} ta**",
+                f"💰 Har bir referal uchun: **{REFERRAL_BONUS:,} so'm** (ikkalangizga)\n",
+                f"🔗 **Sizning havolangiz:**",
+                f"`{ref_link}`\n",
+                f"📌 Do'stingizga shu havolani yuboring. U ro'yxatdan o'tganda ikkalangizga **{REFERRAL_BONUS:,} so'm** beriladi!",
+            ]
+
+            if ref_list:
+                lines.append(f"\n👤 **So'nggi referallar:**")
+                for r in ref_list:
+                    r_id, r_first, r_last, r_uname, r_date = r
+                    r_name = f"{r_first or ''} {r_last or ''}".strip() or r_uname or str(r_id)
+                    r_date_short = r_date[:10] if r_date else ""
+                    lines.append(f"  • {r_name} — {r_date_short}")
+
+            await event.respond(
+                "\n".join(lines),
                 buttons=[[Button.text("🔙 Bosh menyu")]],
                 link_preview=False
             )
@@ -1673,6 +1832,29 @@ async def main():
     # ============================================================
     #  ADMIN PANEL
     # ============================================================
+    # ============================================================
+    #  ADMIN NOTIFY — muhim hodisalarda xabar
+    # ============================================================
+    # Faol foydalanuvchilar: {user_id: {name, step, last_action, time}}
+    active_users: dict = {}
+
+    async def notify_admin(text: str):
+        """Barcha adminlarga xabar yuborish"""
+        for admin_id in ADMIN_IDS:
+            try:
+                await bot_client.send_message(admin_id, text)
+            except Exception as e:
+                log.error(f"Admin notify xato: {e}")
+
+    def track_user(uid: int, name: str, step: str, action: str):
+        """Faol foydalanuvchini kuzatish"""
+        active_users[uid] = {
+            "name":   name,
+            "step":   step,
+            "action": action,
+            "time":   datetime.now().strftime("%H:%M:%S"),
+        }
+
     async def _show_admin(event):
         busy = sum(1 for v in account_busy.values() if v)
         free = len(account_pool) - busy
@@ -1683,6 +1865,7 @@ async def main():
         await event.respond(
             f"🔧 **ADMIN PANEL**\n\n"
             f"👥 Foydalanuvchilar: **{total_users} ta**\n"
+            f"👀 Faol hozir: **{len(active_users)} ta**\n"
             f"💰 Bugungi daromad: **{stats['today']:,} so'm**\n"
             f"💵 Jami daromad: **{stats['total']:,} so'm**\n"
             f"⏳ Kutilayotgan to'lov: **{stats['pending']} ta**\n\n"
@@ -1692,10 +1875,11 @@ async def main():
             ("\n".join(rows) if rows else "  (yo'q)"),
             buttons=[
                 [Button.text("👥 Userlar ro'yxati"), Button.text("💳 To'lovlar")],
+                [Button.text("👀 Faol foydalanuvchilar"), Button.text("📋 Navbat")],
                 [Button.text("➕ Akkaunt qo'shish"), Button.text("➖ Akkaunt o'chirish")],
-                [Button.text("📤 Sessiya yuklash"),   Button.text("📋 Navbat")],
-                [Button.text("📊 Holat"),             Button.text("⬇️ DB yuklash")],
-                [Button.text("⬆️ DB yuklash (yangi)"),Button.text("🗑 Navbatni tozalash")],
+                [Button.text("💸 Userga pul yuborish"), Button.text("📊 Holat")],
+                [Button.text("📤 Sessiya yuklash"), Button.text("⬇️ DB yuklash")],
+                [Button.text("⬆️ DB yuklash (yangi)"), Button.text("🗑 Navbatni tozalash")],
                 [Button.text("🔙 Bosh menyu")],
             ]
         )
@@ -1846,11 +2030,53 @@ async def main():
                                 "📊 Holat","📋 Navbat","🗑 Navbatni tozalash",
                                 "🔙 Admin panel", "👥 Userlar ro'yxati",
                                 "💳 To'lovlar", "📤 Sessiya yuklash",
-                                "⬇️ DB yuklash", "⬆️ DB yuklash (yangi)"]
+                                "⬇️ DB yuklash", "⬆️ DB yuklash (yangi)",
+                                "👀 Faol foydalanuvchilar", "💸 Userga pul yuborish",
+                                "💸 Yana yuborish"]
     ))
     async def admin_btns(event):
         uid = event.sender_id
         text = event.text.strip()
+
+        if text == "👀 Faol foydalanuvchilar":
+            if not active_users:
+                await event.respond(
+                    "👀 **Faol foydalanuvchilar**\n\nHozir hech kim faol emas.",
+                    buttons=[[Button.text("🔙 Admin panel")]]
+                )
+                return
+            step_names = {
+                "idle": "🏠 Bosh menyu",
+                "ai_ask_fan": "🤖 Fan nomi yozmoqda",
+                "ai_ask_topic": "🤖 Mavzu yozmoqda",
+                "ai_settings": "🤖 AI sozlamalar",
+                "ai_generating": "🤖 AI generatsiya kutmoqda",
+                "wait_file": "📂 Fayl kutmoqda",
+                "wait_text": "✏️ Matn yozmoqda",
+                "wait_payment": "💳 To'lov kutmoqda (AI)",
+                "wait_payment_file": "💳 To'lov kutmoqda (fayl)",
+                "ask_fan_name": "📚 Fan nomi kiritmoqda",
+                "ask_split": "🔢 Variant soni tanlayapti",
+                "ask_time": "⏱ Vaqt tanlayapti",
+                "ask_order": "🔀 Tartib tanlayapti",
+                "manual_start": "✋ Manual rejim boshladi",
+                "manual_detect": "✋ Manual savol ko'rib chiqmoqda",
+                "manual_answer": "✋ Javob ko'rsatmoqda",
+            }
+            lines = [f"👀 **Faol foydalanuvchilar: {len(active_users)} ta**\n"]
+            for u_id, info in list(active_users.items()):
+                step_label = step_names.get(info['step'], info['step'])
+                lines.append(
+                    f"• **{info['name']}** (`{u_id}`)\n"
+                    f"  {step_label}\n"
+                    f"  📝 {info['action']}\n"
+                    f"  🕐 {info['time']}"
+                )
+            await event.respond(
+                "\n\n".join(lines),
+                buttons=[[Button.text("🔄 Yangilash"), Button.text("🔙 Admin panel")]]
+            )
+            return
 
         if text == "🔙 Admin panel":
             admin_states.pop(uid, None)
@@ -1938,6 +2164,23 @@ async def main():
             btns.append([Button.text("🔙 Admin panel")])
             admin_states[uid] = {"step": "wait_remove"}
             await event.respond("Qaysi raqamni o'chirish?", buttons=btns)
+
+        elif text == "💸 Yana yuborish":
+            admin_states[uid] = {"step": "wait_bonus_user_id"}
+            await event.respond(
+                "💸 **Userga bonus yuborish**\n\nUser ID ni yozing:",
+                buttons=[[Button.text("🔙 Admin panel")]]
+            )
+
+        elif text == "💸 Userga pul yuborish":
+            admin_states[uid] = {"step": "wait_bonus_user_id"}
+            await event.respond(
+                "💸 **Userga bonus yuborish**\n\n"
+                "User ID ni yozing:\n"
+                "_(Misol: 7693087447)_\n\n"
+                "/cancel — bekor",
+                buttons=[[Button.text("🔙 Admin panel")]]
+            )
 
         elif text == "📊 Holat":
             lines = ["📊 **HOLAT**\n"]
@@ -2087,6 +2330,102 @@ async def main():
             await event.respond(f"❌ `{phone}` topilmadi yoki band!",
                 buttons=[[Button.text("🔙 Admin panel")]])
         admin_states.pop(uid, None)
+
+    async def _admin_bonus_user_id(event, uid, text):
+        """Admin user ID kiritdi"""
+        try:
+            target_id = int(text.strip())
+        except ValueError:
+            await event.respond(
+                "❌ Noto'g'ri format! Faqat raqam yozing:\n_(Misol: 7693087447)_",
+                buttons=[[Button.text("🔙 Admin panel")]]
+            )
+            return
+        user = db_get_user(target_id)
+        if not user:
+            await event.respond(
+                f"❌ `{target_id}` ID li foydalanuvchi topilmadi!\n\n"
+                f"User botga /start bosgan bo'lishi kerak.",
+                buttons=[[Button.text("🔙 Admin panel")]]
+            )
+            return
+        first  = user[1] or ""
+        last   = user[2] or ""
+        uname  = user[3] or ""
+        bal    = user[4] or 0
+        name   = f"{first} {last}".strip() or uname or str(target_id)
+        uname_str = f"@{uname}" if uname else ""
+        admin_states[uid] = {
+            "step": "wait_bonus_amount",
+            "target_id": target_id,
+            "target_name": name,
+        }
+        await event.respond(
+            f"👤 **Foydalanuvchi topildi:**\n\n"
+            f"Ism: **{name}** {uname_str}\n"
+            f"ID: `{target_id}`\n"
+            f"💰 Hozirgi balans: **{bal:,} so'm**\n\n"
+            f"Qancha so'm yuborasiz?\n_(Manfiy son ham bo'lishi mumkin, masalan: -1000)_",
+            buttons=[[Button.text("🔙 Admin panel")]]
+        )
+
+    async def _admin_bonus_amount(event, uid, text):
+        """Admin miqdor kiritdi"""
+        astate = admin_states.get(uid, {})
+        target_id   = astate.get("target_id")
+        target_name = astate.get("target_name", str(target_id))
+        try:
+            amount = int(text.strip().replace(" ", "").replace(",", ""))
+        except ValueError:
+            await event.respond(
+                "❌ Noto'g'ri miqdor! Faqat raqam yozing:\n_(Misol: 5000 yoki -1000)_",
+                buttons=[[Button.text("🔙 Admin panel")]]
+            )
+            return
+        if amount == 0:
+            await event.respond("❌ 0 yuborib bo'lmaydi!", buttons=[[Button.text("🔙 Admin panel")]])
+            return
+        # Balansi yetarlimi (ayirish uchun)
+        if amount < 0:
+            bal = db_get_balance(target_id)
+            if bal + amount < 0:
+                await event.respond(
+                    f"❌ Balans yetarli emas!\n"
+                    f"Hozirgi balans: **{bal:,} so'm**\n"
+                    f"Ayirilmoqchi: **{abs(amount):,} so'm**",
+                    buttons=[[Button.text("🔙 Admin panel")]]
+                )
+                return
+        db_add_balance(target_id, amount, f"Admin bonusi — {uid}")
+        new_bal = db_get_balance(target_id)
+        admin_states.pop(uid, None)
+        icon = "💸" if amount > 0 else "➖"
+        # Foydalanuvchiga xabar
+        try:
+            if amount > 0:
+                await bot_client.send_message(
+                    target_id,
+                    f"🎁 **Sizga bonus yuborildi!**\n\n"
+                    f"💰 +{amount:,} so'm\n"
+                    f"💼 Yangi balans: **{new_bal:,} so'm**"
+                )
+            else:
+                await bot_client.send_message(
+                    target_id,
+                    f"ℹ️ **Balans o'zgartirildi**\n\n"
+                    f"💰 {amount:,} so'm\n"
+                    f"💼 Yangi balans: **{new_bal:,} so'm**"
+                )
+        except Exception as e:
+            log.warning(f"Foydalanuvchiga xabar yuborilmadi: {e}")
+        await event.respond(
+            f"{icon} **Muvaffaqiyatli!**\n\n"
+            f"👤 {target_name} (`{target_id}`)\n"
+            f"💰 {'+' if amount > 0 else ''}{amount:,} so'm\n"
+            f"💼 Yangi balans: **{new_bal:,} so'm**",
+            buttons=[[Button.text("💸 Yana yuborish"), Button.text("🔙 Admin panel")]]
+        )
+        log.info(f"Admin bonus: {uid} → {target_id}, {amount} so'm")
 
     # ============================================================
     #  PARSER (ichki)
